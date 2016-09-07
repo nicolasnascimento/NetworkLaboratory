@@ -15,6 +15,7 @@ int sharedSocket = -1;
 
 int initSharedSocketWithInterfaceName(const char* interfaceName) {
 	sharedSocket = initSocketWithInterfaceName(interfaceName);
+	return sharedSocket;
 }
 
 int initSocketWithInterfaceName(const char* interfaceName) {
@@ -51,6 +52,19 @@ int initSocketWithInterfaceName(const char* interfaceName) {
 	}
 	
 	return 0;
+}
+
+
+int closeSharedSocket() {
+	return closeSocketWithFileDescriptor(sharedSocket);
+}
+
+int closeSocketWithFileDescriptor(int fileDescriptor) {
+	int operationCode = close(fileDescriptor);
+	if( operationCode < 0 ) {
+		perror("Error while closing socket with file Descriptor");
+	}
+	return operationCode;
 }
 
 int sendData(const char* buffer, const char* destinationIpAddress) {

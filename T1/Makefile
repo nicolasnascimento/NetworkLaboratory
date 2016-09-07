@@ -1,6 +1,7 @@
 # Declaration of variables
-CC = gcc
-CC_FLAGS = -w -std=gnu99 -Wall
+CC = clang
+CC_FLAGS = -Wall -std=gnu99 -Wall
+LD_FLAGS = -pthread
 
 # File names
 EXEC = run
@@ -9,7 +10,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 # Main Target
 $(EXEC): $(OBJECTS)
-	$(CC) $(OBJECTS) -o $(EXEC)
+	$(CC) $(OBJECTS) -o $(EXEC) $(LD_FLAGS)
 
 # To obtain object files
 %.o: %.c

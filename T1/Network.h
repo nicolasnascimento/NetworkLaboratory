@@ -18,6 +18,13 @@ int initSharedSocketWithInterfaceName(const char* interfaceName);
 /// The "error" variable will be set the corresping error
 int initSocketWithInterfaceName(const char* interfaceName);
 
+
+/// Closes the socket
+int closeSocketWithFileDescriptor(int fileDescriptor);
+
+/// Closes the shared socket
+int closeSharedSocket();
+
 /// Sends a generic buffer through the network using the shared socket
 /// Returns -1 if the sharedSocket is not initialized or if any errors happen during the sending process
 int sendData(const char* buffer, const char* destinationIpAddress);

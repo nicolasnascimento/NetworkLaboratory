@@ -9,12 +9,12 @@
 // IPV4
 #define IP_ADDRESS_LENGTH 4
 
-int main(int argc, const char* argv[]) {
+// These will 
+char interfaceName[IFNAMSIZ];
+char targetIpAddres[IP_ADDRESS_LENGTH];
 
-	// The name of the local interface
-	char interfaceName[IFNAMSIZ];
-	// The target IpAddress
-	char targetIpAddress[IP_ADDRESS_LENGTH];	
+
+int main(int argc, const char* argv[]) {		
 
 	// Safety check
 	if( argc != 3 ) {
@@ -27,4 +27,8 @@ int main(int argc, const char* argv[]) {
 	// Initialized Socket with the provided interfaceName
 	initSharedSocketWithInterfaceName((const char*)interfaceName);
 	
+	
+	
+	// End of program
+	exit(EXIT_SUCESS);
 }
