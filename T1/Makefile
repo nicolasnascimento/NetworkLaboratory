@@ -1,6 +1,6 @@
 # Declaration of variables
 CC = gcc
-CC_FLAGS = -std=c99
+CC_FLAGS = -w -std=gnu99 -Wall
 
 # File names
 EXEC = run
