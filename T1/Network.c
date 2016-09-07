@@ -12,6 +12,7 @@
 
 int sharedSocket = -1;
 
+
 int initSharedSocketWithInterfaceName(const char* interfaceName) {
 	sharedSocket = initSocketWithInterfaceName(interfaceName);
 }
