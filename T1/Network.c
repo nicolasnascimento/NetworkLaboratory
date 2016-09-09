@@ -27,31 +27,31 @@ int initSocketWithInterfaceName(const char* interfaceName) {
 
 	// Create the standard raw socket
 	// Last flag allow to get the Ethernet package from the Local Network
-	sharedSocket = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-	if( sharedSocket < 0 ) {
+	int rawSocket = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+	if( rawSocket < 0 ) {
 		perror("Error in initial socket creation");
 		return -1;
 	}
-	// Gets Flags for the interface
-	if( ioctl(sharedSocket, SIOCGIFINDEX, &interfaceRequest) < 0 ) {
+	// Gets the index for the interface
+	if( ioctl(rawSocket, SIOCGIFINDEX, &interfaceRequest) < 0 ) {
 		perror("Error in interface index obtainance");
 		return -1;	
 	}
 	
 	/// Gets the initial for the interface
-	if( ioctl(sharedSocket, SIOCGIFFLAGS, &interfaceRequest) < 0 ) {
+	if( ioctl(rawSocket, SIOCGIFFLAGS, &interfaceRequest) < 0 ) {
 		perror("Error in interface flags obtainance");
 		return -1;
 	}
 
 	// Sets the interface to promiscuos
 	interfaceRequest.ifr_flags |= IFF_PROMISC;
-	if( ioctl(sharedSocket, SIOCSIFFLAGS, &interfaceRequest) < 0 ) {
+	if( ioctl(rawSocket, SIOCSIFFLAGS, &interfaceRequest) < 0 ) {
 		perror("Error while setting interface to promiscuos");
 		return -1;
 	}
 	
-	return 0;
+	return rawSocket;
 }
 
 

@@ -5,6 +5,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netinet/ether.h>
+#include <netinet/if_ether.h>
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <net/if_arp.h>
@@ -12,6 +13,7 @@
 
 #include "Arp.h"
 #include "Network.h"
+#include "Ethernet.h"
 
 
 #define BUFFER_SIZE 1500
@@ -20,12 +22,23 @@
 // Keep a reference to the interfaName as it will be used by the background thread
 char sharedInterfaceName[IFNAMSIZ];
 
+// The thread reference
+pthread_t backgroundThread;
 
-void* arpSnifferLoop(void* data) {
+
+void* arpSnifferLoop() {
+	printf("Initializing Arp Sniffer\n");
+	
 	// Create a new raw socket
 	int rawSocket = initSocketWithInterfaceName(sharedInterfaceName);
+
+	if( rawSocket < 0 ) {
+		perror("Error while creating raw socket");
+		return NULL;
+	}
 	// The buffer to store incoming packages
 	unsigned char buffer[BUFFER_SIZE];
+	
 	// Begin receiving packages from the Network
 	while(1) {
 		if( recv(rawSocket, (char*) &buffer, BUFFER_SIZE, 0) < 0 ) {
@@ -34,7 +47,16 @@ void* arpSnifferLoop(void* data) {
 			close(rawSocket);
 			return NULL;
 		}
+		
+		EthernetPackage package = createEthernetPackageFromBuffer(buffer);
+		if( package.ethertype == ARP_ETHERTYPE ) {
+			printf("Arp Package:\n");
 					
+			struct arphdr arpHeader;
+			memcpy(&arpHeader, package.data, sizeof(arpHeader));
+			
+						
+		}					
 	}
 }
 
@@ -43,9 +65,6 @@ int initArpSnifferWithInterfaceName(const char* interfaceName) {
 	
 	// Copies the interfaceName
 	strcpy(sharedInterfaceName, interfaceName);	
-
-	// The thread to be used
-	pthread_t backgroundThread;
 	
 	// Initializes the sniffer loop
 	if( pthread_create(&backgroundThread, NULL, arpSnifferLoop, NULL )) {

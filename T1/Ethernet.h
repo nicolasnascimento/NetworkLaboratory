@@ -14,7 +14,7 @@ typedef struct EthernetPackage {
 
 
 /// Creates an Ethernet Package from the standar buffer
-EthernetPackage createEthernePackageFromBuffer(unsigned char* buffer);
+EthernetPackage createEthernetPackageFromBuffer(unsigned char* buffer);
 
 
 

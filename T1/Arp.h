@@ -5,6 +5,4 @@
 /// The thread willl print all fields of incoming ARP Messages
 int initArpSnifferWithInterfaceName(const char* interfaceName);
 
-
-
 #endif

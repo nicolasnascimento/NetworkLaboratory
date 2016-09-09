@@ -1,6 +1,6 @@
 # Declaration of variables
 CC = clang
-CC_FLAGS = -Wall -std=gnu99 -Wall
+CC_FLAGS = -std=gnu99 -Wall
 LD_FLAGS = -pthread
 
 # File names
