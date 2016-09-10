@@ -54,8 +54,13 @@ void* arpSnifferLoop() {
 					
 			struct arphdr arpHeader;
 			memcpy(&arpHeader, package.data, sizeof(arpHeader));
+			arpHeader.ar_hrd = ntohs(arpHeader.ar_hrd);
+			arpHeader.ar_pro = ntohs(arpHeader.ar_pro);
+			arpHeader.ar_hln = ntohs(arpHeader.ar_hln);
+			arpHeader.ar_pln = ntohs(arpHeader.ar_pln);
+			arpHeader.ar_op = ntohs(arpHeader.ar_op);
 			
-						
+								
 		}					
 	}
 }
