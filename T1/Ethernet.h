@@ -17,5 +17,4 @@ typedef struct EthernetPackage {
 EthernetPackage createEthernetPackageFromBuffer(unsigned char* buffer);
 
 
-
 #endif // ETHERNET_H

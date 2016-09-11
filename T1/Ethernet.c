@@ -18,3 +18,4 @@ EthernetPackage createEthernetPackageFromBuffer(unsigned char* buffer) {
 	
 	return package;
 }
+
