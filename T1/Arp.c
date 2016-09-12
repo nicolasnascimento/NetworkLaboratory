@@ -46,6 +46,11 @@ void* arpSnifferLoop() {
 			close(rawSocket);
 			return NULL;
 		}
+		/*printf("New Package  = [");
+		for( int i = 0; i < BUFFER_SIZE; i++ ) {
+			printf("%x", buffer[i]);
+		}
+		printf("]\n");*/
 		
 		EthernetPackage package = createEthernetPackageFromBuffer(buffer);
 		if( package.ethertype == ARP_ETHERTYPE ) {
@@ -54,11 +59,11 @@ void* arpSnifferLoop() {
 			ArpPackage arpPackage = createArpPackageWithEthernetPackage(package);
 			
 			printArpPackage(arpPackage);
-		}				
+		}else{
+			//printf("Ehertype = %x\n", package.ethertype);
+		}			
 	}
 }
-
-
 
 int initArpSnifferWithInterfaceName(const char* interfaceName) {
 	
@@ -74,21 +79,21 @@ int initArpSnifferWithInterfaceName(const char* interfaceName) {
 	return 0;
 }
 
-void copyMemoryAndAdvancePointer(void*,void*,int,void*);
+void copyMemoryAndAdvancePointer(void*,void*,int,unsigned char**);
 
 ArpPackage createArpPackageWithEthernetPackage(EthernetPackage package) {
 	ArpPackage arpPackage;
 	unsigned char* dataPointer = package.data;
 	// Copy Data
-	copyMemoryAndAdvancePointer(&arpPackage.hardwareType, dataPointer, sizeof(arpPackage.hardwareType), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.protocolType, dataPointer, sizeof(arpPackage.protocolType), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.hardwareLength, dataPointer, sizeof(arpPackage.hardwareLength), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.protocolLength, dataPointer, sizeof(arpPackage.protocolLength), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.operation, dataPointer, sizeof(arpPackage.operation), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.senderMacAddress, dataPointer, sizeof(arpPackage.senderMacAddress), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.senderIpAddress, dataPointer, sizeof(arpPackage.senderIpAddress), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.targetMacAddress, dataPointer, sizeof(arpPackage.targetMacAddress), dataPointer);
-	copyMemoryAndAdvancePointer(&arpPackage.targetIpAddress, dataPointer, sizeof(arpPackage.targetIpAddress), dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.hardwareType, dataPointer, sizeof(arpPackage.hardwareType), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.protocolType, dataPointer, sizeof(arpPackage.protocolType), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.hardwareLength, dataPointer, sizeof(arpPackage.hardwareLength), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.protocolLength, dataPointer, sizeof(arpPackage.protocolLength), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.operation, dataPointer, sizeof(arpPackage.operation), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.senderMacAddress, dataPointer, sizeof(arpPackage.senderMacAddress), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.senderIpAddress, dataPointer, sizeof(arpPackage.senderIpAddress), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.targetMacAddress, dataPointer, sizeof(arpPackage.targetMacAddress), &dataPointer);
+	copyMemoryAndAdvancePointer(&arpPackage.targetIpAddress, dataPointer, sizeof(arpPackage.targetIpAddress), &dataPointer);
 	
 	// Network to Host Conversion
 	ntohArpPackage(&arpPackage);	
@@ -99,9 +104,9 @@ ArpPackage createArpPackageWithEthernetPackage(EthernetPackage package) {
 void printMacAddress(unsigned char* array, int length) {
 	for( int i = 0; i < length; i++ ) {
 		if( i + 1 < length ) {
-			printf("0x%x:", array[i]);
+			printf("%x:", array[i]);
 		}else{
-			printf("0x%x\n", array[i]);
+			printf("%x\n", array[i]);
 		}
 	}
 }
@@ -121,9 +126,9 @@ void ntohArpPackage(ArpPackage* package) {
 void printIpAddress(unsigned char* array, int length) {
 	for( int i = 0; i < length; i++ ) {
 		if( i + 1 < length ) {
-			printf("0x%x.",array[i]);
+			printf("%u.",array[i]);
 		}else{
-			printf("0x%x\n", array[i]);
+			printf("%u\n", array[i]);
 		}
 	}
 }
@@ -144,9 +149,9 @@ void printArpPackage(ArpPackage package) {
 	printIpAddress(package.targetIpAddress, sizeof(package.targetIpAddress));
 }
 
-void copyMemoryAndAdvancePointer(void* destination, void* source, int length, void* dataPointer) {
+void copyMemoryAndAdvancePointer(void* destination, void* source, int length, unsigned char** dataPointer) {
 	memcpy(destination, source, length);
-	dataPointer += length;
+	(*dataPointer) += length;
 }
 
 

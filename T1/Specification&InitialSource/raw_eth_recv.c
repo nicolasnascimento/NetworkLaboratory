@@ -83,12 +83,17 @@ int main(int argc, char *argv[])
 		
 			struct arphdr arpHeader;
 			memcpy(&arpHeader, data, sizeof(arpHeader));
+            arpHeader.ar_op = ntohs(arpHeader.ar_op);
+			arpHeader.ar_hrd = ntohs(arpHeader.ar_hrd);
+			arpHeader.ar_pro = ntohs(arpHeader.ar_pro);
+
 			printf("HW type: %u\n", arpHeader.ar_hrd);
 			printf("Protocol Type: %u\n", arpHeader.ar_pro);
 			printf("HLEN: %u\n", arpHeader.ar_hln);
 			printf("DLEN: %u\n", arpHeader.ar_pln);
 			printf("ARP Opcode: %u\n", arpHeader.ar_op);
-
+			
+			
 
             /*
                 #define	ARPOP_REQUEST	1 ARP request. 
