@@ -134,11 +134,11 @@ void printIpAddress(unsigned char* array, int length) {
 }
 
 void printArpPackage(ArpPackage package) {
-	printf("Hardware Type = %u\n", package.hardwareType);
-	printf("Protocol Type = %u\n", package.protocolType);
+	printf("Hardware Type = %u\n", ntohs(package.hardwareType));
+	printf("Protocol Type = %u\n", ntohs(package.protocolType));
 	printf("Hardware Length = %u\n", package.hardwareLength);
 	printf("Protocol Length = %u\n", package.protocolLength);
-	printf("Operation = %u\n", package.operation);
+	printf("Operation = %x\n", ntohs(package.operation));
 	printf("Sender Mac = ");
 	printMacAddress(package.senderMacAddress, sizeof(package.senderMacAddress));
 	printf("Sender Ip = ");

