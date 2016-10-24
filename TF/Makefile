@@ -1,5 +1,5 @@
 # Declaration of variables
-CC = clang
+CC = gcc
 CC_FLAGS = -std=gnu99 -Wall
 LD_FLAGS = -lm
 
