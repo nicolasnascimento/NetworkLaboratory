@@ -13,12 +13,12 @@
 #include <stdarg.h>
 
 /// A flag to indicate wheter debug printing should be performed
-int verboseMode = 0;
+int verbose_mode = 0;
 
 /// Always use this print, which is only enabled when verbose mode is enabled.
-void debugPrint(char* format, ...) {
+void d_printf(char* format, ...) {
 	va_list arguments;
-	if( !verboseMode ) {
+	if( !verbose_mode ) {
 		return;	
 	}
 	va_start(arguments, format);
@@ -26,13 +26,14 @@ void debugPrint(char* format, ...) {
 	va_end(arguments);
 }
 
-void getInitialFlags(int argc, char** argv) {
+/// Gets the initial flags from the Command Line
+void get_initial_flags(int argc, char** argv) {
 	int value = 0;
 	// Loop to look for flags
 	while( (value = getopt(argc, argv, "v")) != -1 ) {
 		switch( value ) {
 			case 'v':
-				verboseMode = 1;
+				verbose_mode = 1;
 				break;
 			case '?':
 				
@@ -46,27 +47,27 @@ void getInitialFlags(int argc, char** argv) {
 /// Alloc & Initialze objects. 
 /// Perform Initial Setup of the program
 void init(void) {
-	debugPrint("Initializing\n");	
+	d_printf("Initializing\n");	
 }
 
 /// Dealloc objects
 /// Perform deinitialization for the objects
 void deinit(void) {	
-	debugPrint("Deinitializing\n");
+	d_printf("Deinitializing\n");
 }
 
+/// This should perform the DHCP Spoofing
+void init_DHCP_server() {
 
-void initDHCPServer() {
-	
 }
-
-void initSniffer() {
+/// This should begin monitoring the networking and opening the incoming packages
+void init_sniffer() {
 	
 }
 
 int main(int argc, char** argv) {		
 	// Gets Initial Flags
-	getInitialFlags(argc, argv);
+	get_initial_flags(argc, argv);
 
 	// Initialization
 	init();
@@ -74,9 +75,9 @@ int main(int argc, char** argv) {
 	// Register exit function
 	atexit(deinit);	
 	
-	initDHCPServer();
+	init_DHCP_server();
 	
-	initSniffer();
+	init_sniffer();
 
 	// End of program
 	exit(EXIT_SUCCESS);
