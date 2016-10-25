@@ -1,8 +1,9 @@
 #ifndef DHCP_H
 #define DHCP_H
 
-typeded struct {
-	
+/// This package will be used to capture incoming packages
+typedef struct {
+	// Fields definitions
 } dhcp_package;
 
 
