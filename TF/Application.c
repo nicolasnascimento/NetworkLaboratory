@@ -12,6 +12,8 @@
 #include <sys/socket.h>
 #include <stdarg.h>
 
+#include "dhcp.h"
+
 /// A flag to indicate wheter debug printing should be performed
 int verbose_mode = 0;
 
@@ -58,7 +60,7 @@ void deinit(void) {
 
 /// This should perform the DHCP Spoofing
 void init_DHCP_server() {
-	
+	dhcp_hdr hdr;	
 }
 /// This should begin monitoring the networking and opening the incoming packages
 void init_sniffer() {
