@@ -8,7 +8,7 @@
 #include "dhcp.h"
 
 
-void wait_dhcp_pkg(dhcp_hdr* pkg) {
+void wait_dhcp_hdr(dhcp_hdr* pkg) {
 	
 	int sock;
 	struct sockaddr_in serv_addr;
@@ -42,19 +42,51 @@ void wait_dhcp_pkg(dhcp_hdr* pkg) {
 		memset(buffer, 0, dhcp_hdr_l);
 			
 	
-		if( recv_data_l = recvfrom(sock, buffer, dhcp_hdr_l, 0, (struct sockaddr *) &clnt_addr, &sockaddr_l)) {
+		if( (recv_data_l = recvfrom(sock, buffer, dhcp_hdr_l, 0, (struct sockaddr *) &clnt_addr, &sockaddr_l)) < 0) {
 			perror("recvfrom");
 			exit(EXIT_FAILURE);
 		}
 	
-		// TODO - Check incoming package
+		//set_dhcp_hdr_from_bytes(pkg, buffer, recv_data_l);
+		
+	
+		//printf("Received DHCP Package\n");
+	
+		
 	}
 }
 
-void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr) {
-	// TODO
+void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
+	
+	// Copies data from the pointer
+	memcpy(pkg, ptr, ptr_l);
+	
+	// Apropriate Network-to-Host Conversions
+	pkg->trs_id = ntohl(pkg->trs_id);
+	pkg->num_s = ntohs(pkg->num_s);
+	pkg->flags = ntohs(pkg->flags);
+	pkg->clt_ip = ntohl(pkg->clt_ip);
+	pkg->own_ip = ntohl(pkg->own_ip);
+	pkg->srv_ip = ntohl(pkg->srv_ip);
+	pkg->gtw_ip = ntohl(pkg->gtw_ip);
+	pkg->clt_hrd_addr = ntohs(pkg->clt_hrd_addr);
+
+	// Warning - assuming Magic Cookie will always be present
+	uint8_t* opt_ptr = pkg->opt;
+	size_t len = ( ptr_l - OPT_MAX_L );
+	
+	/// Begin in the byte four( Assuming Magic Cookie will always be present), then check for flags
+	for( int i = 4; i < len; i++ ) {
+		uint8_t opt_code = *(opt_ptr + i);
+		switch(opt_code) {
+			case 53:
+				printf("Type found\n");
+				break;
+		}
+	}
+
 }
 
-void set_bytes_from_dhcp_hdr(dhcp_hdr* pkg, uint8_t* ptr) {
+void set_bytes_from_dhcp_hdr(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
 	// TODO
 }

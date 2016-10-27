@@ -60,7 +60,10 @@ void deinit(void) {
 
 /// This should perform the DHCP Spoofing
 void init_DHCP_server() {
-	dhcp_hdr hdr;	
+	
+	dhcp_hdr hdr;
+	
+	wait_dhcp_hdr(&hdr);	
 }
 /// This should begin monitoring the networking and opening the incoming packages
 void init_sniffer() {

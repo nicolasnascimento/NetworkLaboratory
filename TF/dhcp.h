@@ -44,10 +44,10 @@ typedef struct {
 void wait_dhcp_hdr(dhcp_hdr*);
 
 /// This will get all data from the network and set the struct with the appropriate values
-void set_dhcp_hdr_from_bytes(dhcp_hdr*, uint8_t*);
+void set_dhcp_hdr_from_bytes(dhcp_hdr*, uint8_t*, size_t);
 
 /// This will get all data form the struct and set the values pointed by the 
-void set_bytes_from_dhcp_hdr(dhcp_hdr*, uint8_t*);
+void set_bytes_from_dhcp_hdr(dhcp_hdr*, uint8_t*, size_t);
 
 
 #endif // DHCP_H
