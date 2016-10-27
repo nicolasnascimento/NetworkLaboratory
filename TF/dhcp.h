@@ -12,6 +12,12 @@
 /// Amount of bytes to be used to represent the boot file name
 #define BOOT_FLN_L 128
 
+/// The standard DHCP Port Number
+#define DHCP_PRT_NUM 67
+
+/// The maximum length for the options field
+#define OPT_MAX_L 312
+
 /// This package will be used to capture incoming packages
 typedef struct {
 	uint8_t opcode;				// 0x1 = REQUEST, 0x2 = REPLY
@@ -28,7 +34,9 @@ typedef struct {
 	uint16_t clt_hrd_addr;			
 	uint8_t srv_hst[SRV_HST_L];
 	uint8_t boot_fln[BOOT_FLN_L];
-	// Fields definitions
+	
+	// Variable Length Field
+	uint8_t opt[OPT_MAX_L];
 } dhcp_hdr;
 
 
