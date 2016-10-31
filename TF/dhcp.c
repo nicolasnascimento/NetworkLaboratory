@@ -41,18 +41,19 @@ void wait_dhcp_hdr(dhcp_hdr* pkg) {
 		// Ensures The buffer is empty before doing any operation
 		memset(buffer, 0, dhcp_hdr_l);
 			
-	
+		// Safely receives data form the socket
 		if( (recv_data_l = recvfrom(sock, buffer, dhcp_hdr_l, 0, (struct sockaddr *) &clnt_addr, &sockaddr_l)) < 0) {
 			perror("recvfrom");
 			exit(EXIT_FAILURE);
 		}
-	
-		//set_dhcp_hdr_from_bytes(pkg, buffer, recv_data_l);
+		// Sets the header before bringing it back
+		set_dhcp_hdr_from_bytes(pkg, buffer, recv_data_l);
 		
-	
-		//printf("Received DHCP Package\n");
-	
+		// 
+		printf("Received DHCP Package\n");
+		printf("Returning now\n");
 		
+		break;
 	}
 }
 
