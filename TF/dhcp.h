@@ -6,6 +6,8 @@
 /// The following header was based on the DHCP header file which can be found at: 
 /// http://www.networksorcery.com/enp/protocol/dhcp.htm#Boot%20filename
 
+
+#define CLT_HRD_ADDR_L 16
 /// Amount of bytes to be used to represent the host name
 #define SRV_HST_L 64
 
@@ -31,7 +33,7 @@ typedef struct {
 	uint32_t own_ip;
 	uint32_t srv_ip;
 	uint32_t gtw_ip;
-	uint16_t clt_hrd_addr;			
+	uint8_t clt_hrd_addr[CLT_HRD_ADDR_L];			
 	uint8_t srv_hst[SRV_HST_L];
 	uint8_t boot_fln[BOOT_FLN_L];
 	
@@ -41,13 +43,13 @@ typedef struct {
 
 
 /// Magic Cookie Constant
-extern const uint8_t MAGIC_COOKIE[4] = { 99, 130 , 83, 99 };
+extern const uint8_t MAGIC_COOKIE[4];
 /// Possible DHCP Message Types
 typedef enum{ DISCOVER, OFFER, REQUEST, DECLINE, ACK, NAK, RELEASE, INFORM, INVALID } dhcp_msg_t;
 /// The magic cookie status
 typedef enum{ OK, NOK } cookie_status_t;
 /// Maximum Length for Host Name
-#define MAX_HOST_NAME_L OPT_MAX_L
+#define MAX_HOST_NAME OPT_MAX_L
 /// Default Ethernet Mac address length
 #define ETHER_ADDR_L 6
 /// Default IPV4 Address Length
@@ -68,6 +70,18 @@ typedef struct {
 	uint8_t rqt_id[IP_ADDR_L];
 } dhcp_opt;
 
+/// Some commom DHCP Opt Field Opcodes
+#define DHCP_MSG_OP 53
+#define DHCP_HST_NAME_OP 12
+#define DHCP_CLT_ID_OP 61
+#define DHCP_SUB_MSK_OP 1
+#define DHCP_RNW_TIME_OP 58
+#define DHCP_RBN_TIME_OP 59
+#define DHCP_IP_LEASE_TIME_OP 51
+#define DHCP_SRV_ID_OP 54
+#define DHCP_RTR_ID_OP 3
+#define DHCP_RQT_ID_OP 50
+#define DHCP_END_OP 255
 
 /// This is a blocking calling, it will begin looking for dhcp packages in the network
 void wait_dhcp_hdr(dhcp_hdr*);
