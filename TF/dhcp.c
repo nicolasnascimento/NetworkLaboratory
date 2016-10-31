@@ -54,9 +54,10 @@ void wait_dhcp_hdr(dhcp_hdr* pkg) {
 		// 
 		printf("Received DHCP Package\n");
 		printf("Returning now\n");
-		
+	
 		break;
 	}
+	close(sock);
 }
 
 void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
@@ -121,41 +122,76 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 		}
 	}
 	ptr += magic_cookie_size;
-	
-	/// TODO
+
 	/// Other Flags
 	while( ptr[0] != DHCP_END_OP  ) {
 		uint8_t dhcp_opt_code = ptr[0];
 		uint8_t dhcp_opt_len = 1;
+		uint8_t value = 0;
+		uint8_t str_ll = 0;
 		switch(dhcp_opt_code) {
 			case DHCP_MSG_OP:
-				
+				value = *(ptr + 2);
+				switch(value) {
+					case 1: opt->dhcp_msg = DISCOVER;
+						break;
+					case 2: opt->dhcp_msg = OFFER;
+						break;
+					case 3: opt->dhcp_msg = REQUEST;
+						break;
+					case 4: opt->dhcp_msg = DECLINE;
+						break;
+					case 5: opt->dhcp_msg = ACK;
+						break;
+					case 6: opt->dhcp_msg = NAK;
+						break;
+					case 7: opt->dhcp_msg = RELEASE;
+						break;
+					case 8: opt->dhcp_msg = INFORM;
+						break;
+					default: opt->dhcp_msg = INVALID;
+						break;
+				}
+				dhcp_opt_len = 3;
 				break;
 			case DHCP_HST_NAME_OP:
+				memcpy(opt->hst_name, ptr + 2, str_ll);
+				opt->hst_name[str_ll] = '\0';
+				dhcp_opt_len = 2 + str_ll;
 				break;
 			case DHCP_CLT_ID_OP:
+				memcpy(opt->clt_id, ptr + 2, ETHER_ADDR_L);
+				dhcp_opt_len = 2 + *(ptr + 1);
 				break;
-			
 			case DHCP_SUB_MSK_OP:
+				memcpy(opt->sub_msk, ptr + 2, IP_ADDR_L); 
+				dhcp_opt_len = 6;
 				break;
-			
 			case DHCP_RNW_TIME_OP:
+				memcpy(opt->rtr_id, ptr + 2, IP_ADDR_L);						
+				dhcp_opt_len = 2 + *(ptr + 1);
 				break;
-			
 			case DHCP_RBN_TIME_OP:
+				dhcp_opt_len = 6;
 				break;
-			
 			case DHCP_IP_LEASE_TIME_OP:
+				dhcp_opt_len = 6;
 				break;
-			
 			case DHCP_SRV_ID_OP:
+				memcpy(opt->srv_id, ptr + 2, IP_ADDR_L);
+				dhcp_opt_len = 2 + IP_ADDR_L;
 				break;
-			
 			case DHCP_RTR_ID_OP:
+				memcpy(opt->rtr_id, ptr + 2, IP_ADDR_L);
+				// There could be multiple router, we'll only copy the first one
+				dhcp_opt_len = 2 + *(ptr + 1);
 				break;
-			
 			case DHCP_RQT_ID_OP:
+				memcpy(opt->rqt_id, ptr + 2, IP_ADDR_L);
+				dhcp_opt_len = 2 + IP_ADDR_L;
 				break;
+			default:
+				printf("Debug\n");
 		}
 		ptr += dhcp_opt_len;
 	}
@@ -163,5 +199,48 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 }
 
 void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
-	// TODO
+	
+	// Begin pointing to the options field
+	uint8_t* ptr = pkg->opt;
+	
+	// Cookie
+	memcpy(ptr, MAGIC_COOKIE, 4);
+	ptr += 4;
+	
+	// First the type
+	uint8_t value = 0;
+	switch( opt->dhcp_msg ) {
+		case DISCOVER: value = 1;	
+			break;
+		case OFFER: value = 2;
+			break;
+		case REQUEST: value = 3;
+			break;
+		case DECLINE: value = 4;
+			break;
+		case ACK: value = 5;
+			break;
+		case NAK: value = 6;
+			break;
+		case RELEASE: value = 7;
+			break;
+		case INFORM: value = 8;
+			break;
+		default: value = 0;
+			break;
+	}
+	ptr[0] = DHCP_MSG_OP;
+	ptr[1] = 1;
+	ptr[2] = value;
+	ptr += 3;
+
+	// Host Name
+	size_t hst_name_l = strlen(opt->hst_name);
+	if( hst_name_l != 0 ) {
+		ptr[0] = DHCP_HST_NAME_OP;
+		ptr[1] = hst_name_l;
+		memcpy(ptr, opt->hst_name, hst_name_l); 
+	}
+	
+	// Continue Here
 }

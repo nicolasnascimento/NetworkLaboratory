@@ -62,8 +62,43 @@ void deinit(void) {
 void init_DHCP_server() {
 	
 	dhcp_hdr hdr;
-	
-	wait_dhcp_hdr(&hdr);	
+	dhcp_opt opt;
+	while(1) {	
+		wait_dhcp_hdr(&hdr);
+		
+		set_dhcp_opt_from_dhcp_hdr(&opt, &hdr);
+		
+		switch(opt.dhcp_msg) {
+			case DISCOVER:
+				d_printf("Discover\n");
+				break;
+			case OFFER:
+				d_printf("Offer\n");
+				break;
+			case REQUEST:
+				d_printf("Request\n");
+				break;
+			case DECLINE:
+				d_printf("Decline\n");
+				break;
+			case ACK:
+				d_printf("Ack\n");
+				break;
+			case NAK:
+				d_printf("Nak\n");
+				break;
+			case RELEASE:
+				d_printf("Release\n");
+				break;
+			case INFORM:
+				d_printf("Inform\n");
+				break;
+			case INVALID:
+				d_printf("Invalid\n");
+				break;
+		}
+	}
+
 }
 /// This should begin monitoring the networking and opening the incoming packages
 void init_sniffer() {
