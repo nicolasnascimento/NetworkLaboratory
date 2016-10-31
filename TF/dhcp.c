@@ -70,23 +70,13 @@ void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
 	pkg->srv_ip = ntohl(pkg->srv_ip);
 	pkg->gtw_ip = ntohl(pkg->gtw_ip);
 	pkg->clt_hrd_addr = ntohs(pkg->clt_hrd_addr);
-
-	// Warning - assuming Magic Cookie will always be present
-	uint8_t* opt_ptr = pkg->opt;
-	size_t len = ( ptr_l - OPT_MAX_L );
-	
-	/// Begin in the byte four( Assuming Magic Cookie will always be present), then check for flags
-	for( int i = 4; i < len; i++ ) {
-		uint8_t opt_code = *(opt_ptr + i);
-		switch(opt_code) {
-			case 53:
-				printf("Type found\n");
-				break;
-		}
-	}
-
 }
 
+
+
 void set_bytes_from_dhcp_hdr(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
-	// TODO
+	
+	/// Host to Network Conversions
+	pkg->trs_id = htonl(pkg->trs_id);
+	pkg->num_s  
 }

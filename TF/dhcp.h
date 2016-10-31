@@ -40,6 +40,35 @@ typedef struct {
 } dhcp_hdr;
 
 
+/// Magic Cookie Constant
+extern const uint8_t MAGIC_COOKIE[4] = { 99, 130 , 83, 99 };
+/// Possible DHCP Message Types
+typedef enum{ DISCOVER, OFFER, REQUEST, DECLINE, ACK, NAK, RELEASE, INFORM, INVALID } dhcp_msg_t;
+/// The magic cookie status
+typedef enum{ OK, NOK } cookie_status_t;
+/// Maximum Length for Host Name
+#define MAX_HOST_NAME_L OPT_MAX_L
+/// Default Ethernet Mac address length
+#define ETHER_ADDR_L 6
+/// Default IPV4 Address Length
+#define IP_ADDR_L 4
+
+/// This package defines some commom opt that can be found in the "Options" portion of the dhcp header
+typedef struct {
+	cookie_status_t cookie_status;
+	dhcp_msg_t dhcp_msg;
+	char hst_name[MAX_HOST_NAME];
+	uint8_t clt_id[ETHER_ADDR_L];		// WARNING - Assuming that this field will be filled with Ethernet Mac Addresses
+	uint8_t sub_msk[IP_ADDR_L];
+	uint32_t rnw_time;
+	uint32_t rbn_time;
+	uint32_t ip_lease_time;
+	uint8_t srv_id[IP_ADDR_L];
+	uint8_t rtr_id[IP_ADDR_L];
+	uint8_t rqt_id[IP_ADDR_L];
+} dhcp_opt;
+
+
 /// This is a blocking calling, it will begin looking for dhcp packages in the network
 void wait_dhcp_hdr(dhcp_hdr*);
 
@@ -49,5 +78,10 @@ void set_dhcp_hdr_from_bytes(dhcp_hdr*, uint8_t*, size_t);
 /// This will get all data form the struct and set the values pointed by the 
 void set_bytes_from_dhcp_hdr(dhcp_hdr*, uint8_t*, size_t);
 
+/// This will set the dhcp opt struct using the dhcp header struct provided
+void set_dhcp_opt_from_dhcp_hdr(dhcp_opt*, dhcp_hdr*);
+
+/// This will append the valid options to the dhcp header options field
+void set_dhcp_hdr_from_dhcp_opt(dhcp_opt*, dhcp_hdr*);
 
 #endif // DHCP_H
