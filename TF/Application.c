@@ -66,8 +66,8 @@ void init(void) {
 			struct sockaddr_in *sock_brd_addr = (struct sockaddr_in *)it->ifa_broadaddr;
 			my_ip = sock_addr->sin_addr;
 			brd_addr = sock_brd_addr->sin_addr;
-			d_printf("My Ip: %s\n", inet_ntoa(sock_addr->sin_addr));
-			d_printf("Brodcasts: %s\n", inet_ntoa(sock_brd_addr->sin_addr));
+			d_printf("My Ip Address: %s\n", inet_ntoa(sock_addr->sin_addr));
+			d_printf("Brodcast Address For the Network: %s\n", inet_ntoa(sock_brd_addr->sin_addr));
 			break;
 		}
 		it = it->ifa_next;

@@ -61,6 +61,7 @@ in_addr_t wait_dhcp_hdr(dhcp_hdr* pkg) {
 	
 		break;
 	}
+	// Closes the socket
 	close(sock);
 	
 	return rtrn_v;
@@ -82,11 +83,17 @@ void send_dhcp_hdr(dhcp_hdr* pkg, in_addr_t addr) {
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = htonl(addr);
 	serv_addr.sin_port = htons(DHCP_PRT_NUM_S);
-	
+
+	// This should be tested, by basically is what's left before complete
+	set_bytes_from_dhcp_hdr(pkg, buffer, dhcp_hdr_l);
+
+	// Sends the data
 	if( sendto(sock, buffer, dhcp_hdr_l, 0, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) != dhcp_hdr_l ) {
 		perror("sendto");
 		exit(EXIT_FAILURE);
 	}
+	
+	// Closes the socket
 	close(sock);
 }
 
