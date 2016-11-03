@@ -15,7 +15,8 @@
 #define BOOT_FLN_L 128
 
 /// The standard DHCP Port Number
-#define DHCP_PRT_NUM 67
+#define DHCP_PRT_NUM_S 67 // Server Port
+#define DHCP_PRT_NUM_C 68 // Client
 
 /// The maximum length for the options field
 #define OPT_MAX_L 312
@@ -83,8 +84,12 @@ typedef struct {
 #define DHCP_RQT_ID_OP 50
 #define DHCP_END_OP 255
 
-/// This is a blocking calling, it will begin looking for dhcp packages in the network
-void wait_dhcp_hdr(dhcp_hdr*);
+/// This is a blocking calling, it will begin looking for dhcp packages in the network.
+/// As soon as it finds one, it will return the inet_addr value with the ip address and set the dhcp_hdr struct
+in_addr_t wait_dhcp_hdr(dhcp_hdr*);
+
+/// This will send the dhcp header through the network
+void send_dhcp_hdr(dhcp_hdr*, in_addr_t);
 
 /// This will get all data from the network and set the struct with the appropriate values
 void set_dhcp_hdr_from_bytes(dhcp_hdr*, uint8_t*, size_t);
