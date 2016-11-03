@@ -56,9 +56,6 @@ in_addr_t wait_dhcp_hdr(dhcp_hdr* pkg) {
 		/// Sets the returning value
 		rtrn_v = clnt_addr.sin_addr.s_addr;
 		
-		printf("Received DHCP Package\n");
-		printf("Returning now\n");
-	
 		break;
 	}
 	// Closes the socket
@@ -106,10 +103,10 @@ void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
 	pkg->trs_id = ntohl(pkg->trs_id);
 	pkg->num_s = ntohs(pkg->num_s);
 	pkg->flags = ntohs(pkg->flags);
-	pkg->clt_ip = ntohl(pkg->clt_ip);
+	/*pkg->clt_ip = ntohl(pkg->clt_ip);
 	pkg->own_ip = ntohl(pkg->own_ip);
 	pkg->srv_ip = ntohl(pkg->srv_ip);
-	pkg->gtw_ip = ntohl(pkg->gtw_ip);
+	pkg->gtw_ip = ntohl(pkg->gtw_ip);*/
 }
 
 
@@ -120,10 +117,10 @@ void set_bytes_from_dhcp_hdr(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
 	pkg->trs_id = htonl(pkg->trs_id);
 	pkg->num_s = htons(pkg->num_s);
 	pkg->flags = htons(pkg->flags);
-	pkg->clt_ip = htonl(pkg->clt_ip);
+	/*pkg->clt_ip = htonl(pkg->clt_ip);
 	pkg->own_ip = htonl(pkg->own_ip);
 	pkg->srv_ip = htonl(pkg->srv_ip);
-	pkg->gtw_ip = htonl(pkg->gtw_ip);
+	pkg->gtw_ip = htonl(pkg->gtw_ip);*/
 	
 	size_t dhcp_hdr_l = sizeof(dhcp_hdr);
 	if( ptr_l >= dhcp_hdr_l ) {

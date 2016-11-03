@@ -5,7 +5,8 @@
 
 /// The following header was based on the DHCP header file which can be found at: 
 /// http://www.networksorcery.com/enp/protocol/dhcp.htm#Boot%20filename
-
+/// https://support.microsoft.com/en-us/kb/169289
+/// https://technet.microsoft.com/en-us/library/cc977584.aspx
 
 #define CLT_HRD_ADDR_L 16
 /// Amount of bytes to be used to represent the host name
