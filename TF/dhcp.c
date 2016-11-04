@@ -75,10 +75,16 @@ void send_dhcp_hdr(dhcp_hdr* pkg, in_addr_t addr) {
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
-	
+	// This allow for broadcast
+	int broadcast = 1;
+	if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
+		perror("setsockopt");
+		exit(EXIT_FAILURE);
+	}	
+
 	memset(&serv_addr, 0, sockaddr_l);
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = htonl(addr);
+	serv_addr.sin_addr.s_addr = addr;
 	serv_addr.sin_port = htons(DHCP_PRT_NUM_S);
 
 	// This should be tested, by basically is what's left before complete
