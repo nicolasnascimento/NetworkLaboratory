@@ -13,6 +13,8 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
+#include<netinet/tcp.h>
+#include<netinet/ip.h>
 
 #include "dhcp.h"
 
@@ -216,9 +218,116 @@ void init_DHCP_server() {
 	}
 
 }
-/// This should begin monitoring the networking and opening the incoming packages
-void init_sniffer() {
+
+void print_payload(unsigned char* data, int Size) {
+int i,j;
+     
+    for(i=0 ; i < Size ; i++)
+    {
+        if( i!=0 && i%16==0)   //if one line of hex printing is complete...
+        {
+            printf("         ");
+            for(j=i-16 ; j<i ; j++)
+            {
+                if(data[j]>=32 && data[j]<=128)
+                    printf("%c",(unsigned char)data[j]); //if its a number or alphabet
+                 
+                else printf("."); //otherwise print a dot
+            }
+            printf("\n");
+        } 
+         
+        if(i%16==0) printf("   ");
+            printf(" %02X",(unsigned int)data[i]);
+                 
+        if( i==Size-1)  //print the last spaces
+        {
+            for(j=0;j<15-i%16;j++) printf("   "); //extra spaces
+             
+            printf("         ");
+             
+            for(j=i-i%16 ; j<=i ; j++)
+            {
+                if(data[j]>=32 && data[j]<=128) printf("%c",(unsigned char)data[j]);
+                else printf(".");
+            }
+            printf("\n");
+        }
+    }
+}
+
+//Verify if the http packet contains a valid history URL
+int is_a_valid_history(unsigned char *http, int data_size) {
+	printf("is_a_valid_history\n");
+
+	//check if the payload has the string "GET / HTTP1.1"
+		//if yes, check if the payload have a referrer
+			//if yes, save the address
+			//if not, check the content type into the response HTTP 200
+				//if it is text/html save the address
+	//print packet
+	return 0;
+}
+
+//Wait for incoming HTTP packets
+int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
+	printf("wait_http_packet\n");
+	struct sockaddr saddr;
+	int saddr_size = sizeof(saddr);
 	
+	memset(buffer, 0, sizeof(*buffer));
+
+    	struct iphdr *iph;
+    	unsigned short iphdrlen;
+	struct tcphdr *tcph;
+	struct sockaddr_in source;
+
+	do {
+		//Receive a packet
+		printf("waiting a packet...\n");
+		*data_size = recvfrom(sock_raw, buffer, 65536, 0, &saddr, &saddr_size);
+		printf("received\n");
+		if (*data_size < 0)
+			//Return in an error occur
+			return 0;
+
+		iph  = (struct iphdr*) buffer;
+		tcph = (struct tcphdr*)(buffer + iphdrlen);
+    		iphdrlen = iph->ihl*4;
+		memset(&source, 0, sizeof(source));
+		source.sin_addr.s_addr = iph->saddr;
+	}
+	//Check if the packet has any HTTP info
+	while (!(iph->protocol == 6 && tcph->doff > 0));
+
+	printf("A TCP packet was found and it has some content\n");
+	printf("Source IP: %s\n", inet_ntoa(source.sin_addr));
+
+	//Return the data of HTTP packet by argument
+	buffer = buffer+iphdrlen+tcph->doff*4;
+	*data_size = *data_size-tcph->doff*4-iph->ihl*4;
+	print_payload(buffer, *data_size);
+	return 1;
+}
+
+//Monitor the HTTP network traffic
+void init_sniffer() {
+	int sock_raw, data_size, http;
+	unsigned char *buffer = (unsigned char *)malloc(65536);
+
+	//Create a raw socket that shall sniff
+	sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+	if(sock_raw < 0) {
+        	printf("Socket Error\n");
+        	return;
+    	}
+
+	while((http = wait_http_packet(sock_raw, buffer, &data_size)))
+		if (is_a_valid_history(buffer, data_size))
+			printf("http\n");
+
+	if (!http) printf("Recvfrom Error\n");
+	close(sock_raw);
 }
 
 int main(int argc, char** argv) {		
@@ -233,7 +342,7 @@ int main(int argc, char** argv) {
 	
 	init_DHCP_server();
 	
-	init_sniffer();
+	//init_sniffer();
 
 	// End of program
 	exit(EXIT_SUCCESS);
