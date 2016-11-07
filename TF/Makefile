@@ -1,7 +1,7 @@
 # Declaration of variables
 CC = gcc
 CC_FLAGS = -std=gnu99 -Wall
-LD_FLAGS = -lm
+LD_FLAGS = -lm -pthread
 
 # File names
 EXEC = run
