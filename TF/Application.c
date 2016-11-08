@@ -22,6 +22,7 @@
 
 /// A flag to indicate wheter debug printing should be performed
 int verbose_mode = 0;
+char ifa_name[IFNAMSIZ + 1];
 struct in_addr my_ip;
 struct in_addr brd_addr;
 struct in_addr sub_addr;
@@ -73,6 +74,7 @@ void init(void) {
 	struct ifaddrs *addrs, *it;
 	getifaddrs(&addrs);
 	it = addrs;
+	memset(ifa_name, 0, IFNAMSIZ + 1);
 	while(it) {
 		if( it->ifa_addr && it->ifa_addr->sa_family == AF_INET && strcmp(it->ifa_name, "lo") != 0 ) {
 			struct sockaddr_in *sock_addr = (struct sockaddr_in *)it->ifa_addr;
@@ -81,9 +83,11 @@ void init(void) {
 			my_ip = sock_addr->sin_addr;
 			brd_addr = sock_brd_addr->sin_addr;
 			sub_addr = sock_sub_addr->sin_addr;
+			strcpy(ifa_name, it->ifa_name);
 			d_printf("My Ip Address: %s\n", inet_ntoa(sock_addr->sin_addr));
 			d_printf("Brodcast Address For the Network: %s\n", inet_ntoa(sock_brd_addr->sin_addr));
 			d_printf("Subnet Mask: %s\n", inet_ntoa(sock_sub_addr->sin_addr));
+			d_printf("Interface Name: %s\n", ifa_name);
 			break;
 		}
 		it = it->ifa_next;
@@ -262,16 +266,19 @@ int i,j;
 //Verify if the http packet contains a valid history URL
 int is_a_valid_history(unsigned char *http, int data_size) {
 	d_printf("is_a_valid_history\n");
-	print_payload(http, data_size);
-	printf("\n");
-	//if (strstr(http, "GET / HTTP/1.1") != NULL)
-	//	printf("GET\n");
-	//char *token = NULL;
-	//token = strtok(http, "\n");
-	//while (token) {
-	//	printf("Current token: %s.\n", token);
-	//	token = strtok(NULL, "\n");
-	//}
+	//print_payload(http, data_size);
+	//printf("%*s\n", data_size, http);
+	unsigned char *get;
+	if ((get = strstr(http, "GET")) != NULL) {
+		//printf("GET\n");
+		char *token = NULL;
+		token = strtok(get, "\n");
+		int i;
+		for (i=0; i<2; i++) {
+			printf("%s\n", token);
+			token = strtok(NULL, "\n");
+		}
+	}
 
 
 
@@ -293,7 +300,6 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 	memset(buffer, 0, sizeof(*buffer));
 
     	struct iphdr *iph;
-    	unsigned short iphdrlen;
 	struct tcphdr *tcph;
 	struct sockaddr_in source;
 
@@ -302,28 +308,29 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 		d_printf("waiting a packet...\n");
 		*data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
 		d_printf("received\n");
-		if (*data_size < 0)
+		if (*data_size < 0) {
 			//Return in an error occur
+			perror("recvfrom");
 			return 0;
+		}
 
 		iph  = (struct iphdr*) (buffer + sizeof(struct ethhdr));
-		tcph = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + iphdrlen);
-    		iphdrlen = iph->ihl*4;
+		tcph = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + sizeof(struct iphdr));
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
 
 	}
 	//Check if the packet has any HTTP info
-	while (!(iph->protocol == 6 && strcmp("10.32.143.163", inet_ntoa(source.sin_addr)) == 0 && tcph->doff > 0));
+	while (!(iph->protocol == 6 && strcmp("10.32.143.20", inet_ntoa(source.sin_addr)) == 0 && tcph->doff > 0));
 
 	d_printf("A TCP packet was found and it has some content\n");
 	d_printf("Source IP: %s\n", inet_ntoa(source.sin_addr));
-
+	d_printf("packet length: %d\n", *data_size);
 	//Return the data of HTTP packet by argument
-	buffer = buffer+sizeof(struct ethhdr)+iphdrlen+tcph->doff*4;
-	*data_size = *data_size-tcph->doff*4-iph->ihl*4;
+	*data_size = *data_size-(sizeof(struct ethhdr)+sizeof(struct tcphdr));
 	//print_payload(buffer, *data_size);
-	return 1;
+	//return 1;
+	return buffer+sizeof(struct ethhdr)+sizeof(struct tcphdr)+sizeof(struct iphdr);
 }
 
 //Monitor the HTTP network traffic
@@ -339,7 +346,8 @@ void init_sniffer() {
         	return;
     	}
 
-	strncpy(interfaceFlags.ifr_name, "enp4s0", IFNAMSIZ);
+	//strncpy(interfaceFlags.ifr_name, "enp4s0", IFNAMSIZ);
+	strncpy(interfaceFlags.ifr_name, ifa_name, IFNAMSIZ-1);
 
 	/// Gets the initial flags for the interface
 	if(ioctl(sock_raw, SIOCGIFFLAGS, &interfaceFlags) < 0 ) {
@@ -354,11 +362,10 @@ void init_sniffer() {
                 return;
         }
 
-	while((http = wait_http_packet(sock_raw, buffer, &data_size)))
+	while((buffer = wait_http_packet(sock_raw, buffer, &data_size)))
 		if (is_a_valid_history(buffer, data_size))
 			printf("http\n");
 
-	if (!http) printf("Recvfrom Error\n");
 	close(sock_raw);
 }
 
@@ -372,14 +379,15 @@ int main(int argc, char** argv) {
 	// Register exit function
 	atexit(deinit);	
 	
-	/*pthread_t thread;
+	pthread_t thread;
 
 	if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
 	
 		d_printf("Deu Merda\n");
 	
-	}*/	
-
+	}
+	
+	
 	init_sniffer();
 
 	// End of program
