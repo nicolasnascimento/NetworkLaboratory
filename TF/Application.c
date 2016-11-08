@@ -22,6 +22,7 @@
 
 /// A flag to indicate wheter debug printing should be performed
 int verbose_mode = 0;
+char ifa_name[IFNAMSIZ + 1];
 struct in_addr my_ip;
 struct in_addr brd_addr;
 struct in_addr sub_addr;
@@ -73,6 +74,7 @@ void init(void) {
 	struct ifaddrs *addrs, *it;
 	getifaddrs(&addrs);
 	it = addrs;
+	memset(ifa_name, 0, IFNAMSIZ + 1);
 	while(it) {
 		if( it->ifa_addr && it->ifa_addr->sa_family == AF_INET && strcmp(it->ifa_name, "lo") != 0 ) {
 			struct sockaddr_in *sock_addr = (struct sockaddr_in *)it->ifa_addr;
@@ -81,9 +83,11 @@ void init(void) {
 			my_ip = sock_addr->sin_addr;
 			brd_addr = sock_brd_addr->sin_addr;
 			sub_addr = sock_sub_addr->sin_addr;
+			strcpy(ifa_name, it->ifa_name);
 			d_printf("My Ip Address: %s\n", inet_ntoa(sock_addr->sin_addr));
 			d_printf("Brodcast Address For the Network: %s\n", inet_ntoa(sock_brd_addr->sin_addr));
 			d_printf("Subnet Mask: %s\n", inet_ntoa(sock_sub_addr->sin_addr));
+			d_printf("Interface Name: %s\n", ifa_name);
 			break;
 		}
 		it = it->ifa_next;
@@ -328,7 +332,7 @@ void init_sniffer() {
         	return;
     	}
 
-	strncpy(interfaceFlags.ifr_name, "enp4s0", IFNAMSIZ-1);
+	strncpy(interfaceFlags.ifr_name, ifa_name, IFNAMSIZ-1);
 
 	/// Gets the initial flags for the interface
 	if(ioctl(sock_raw, SIOCGIFFLAGS, &interfaceFlags) < 0 ) {
@@ -361,14 +365,15 @@ int main(int argc, char** argv) {
 	// Register exit function
 	atexit(deinit);	
 	
-	/*pthread_t thread;
+	pthread_t thread;
 
 	if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
 	
 		d_printf("Deu Merda\n");
 	
-	}*/	
-
+	}
+	
+	
 	init_sniffer();
 
 	// End of program
