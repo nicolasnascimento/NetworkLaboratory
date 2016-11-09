@@ -17,6 +17,7 @@
 #include <netinet/ip.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
+#include <resolv.h>
 
 #include "dhcp.h"
 
@@ -26,7 +27,9 @@ char ifa_name[IFNAMSIZ + 1];
 struct in_addr my_ip;
 struct in_addr brd_addr;
 struct in_addr sub_addr;
+struct in_addr dns_addr;
 uint8_t srv_hst_name[] = "NOT-A-ROUTER";
+uint8_t dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
 
 /// Always use this print, which is only enabled when verbose mode is enabled.
 void d_printf(char* format, ...) {
@@ -94,8 +97,9 @@ void init(void) {
 	}
 	freeifaddrs(addrs);
 	
-	// Broadcast
-	
+	// Initialization to get DNS Server Ip
+	dns_addr.s_addr = inet_addr(dns_srv_addr);
+	d_printf("DNS Server Ip: %s\n", inet_ntoa(dns_addr));
 
 	d_printf("Done - Initialization\n");
 }
@@ -143,7 +147,7 @@ void init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;		
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = 0;		
-				o_hdr.own_ip = inet_addr("10.32.143.20"); // Static Value for Now
+				o_hdr.own_ip = inet_addr("10.32.143.40"); // Static Value for Now
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -156,6 +160,7 @@ void init_DHCP_server(void* arg) {
 				memcpy(o_opt.srv_id, &my_ip.s_addr, IP_ADDR_L);
 				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
 				memcpy(o_opt.sub_msk, &sub_addr.s_addr, IP_ADDR_L);
+				memcpy(o_opt.dns_id, &dns_addr.s_addr, IP_ADDR_L);
 				//o_opt.rnw_time = 10000;
 				//o_opt.rbn_time = 10000;
 
@@ -179,7 +184,7 @@ void init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = i_hdr.clt_ip;
-				o_hdr.own_ip = inet_addr("10.32.143.20");
+				o_hdr.own_ip = inet_addr("10.32.143.40");
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -192,6 +197,7 @@ void init_DHCP_server(void* arg) {
 				memcpy(o_opt.srv_id, &my_ip.s_addr, IP_ADDR_L);
 				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
 				memcpy(o_opt.sub_msk, &sub_addr.s_addr, IP_ADDR_L);
+				memcpy(o_opt.dns_id, &dns_addr.s_addr, IP_ADDR_L);
 				o_opt.rnw_time = 10000;
 				o_opt.rbn_time = 10000;
 
@@ -305,9 +311,9 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 
 	do {
 		//Receive a packet
-		d_printf("waiting a packet...\n");
+		//d_printf("waiting a packet...\n");
 		*data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
-		d_printf("received\n");
+		//d_printf("received\n");
 		if (*data_size < 0) {
 			//Return in an error occur
 			perror("recvfrom");
@@ -321,7 +327,7 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 
 	}
 	//Check if the packet has any HTTP info
-	while (!(iph->protocol == 6 && strcmp("10.32.143.20", inet_ntoa(source.sin_addr)) == 0 && tcph->doff > 0));
+	while (!(iph->protocol == 6 && strcmp("10.32.143.40", inet_ntoa(source.sin_addr)) == 0 && tcph->doff > 0));
 
 	d_printf("A TCP packet was found and it has some content\n");
 	d_printf("Source IP: %s\n", inet_ntoa(source.sin_addr));

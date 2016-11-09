@@ -70,6 +70,7 @@ typedef struct {
 	uint8_t srv_id[IP_ADDR_L];
 	uint8_t rtr_id[IP_ADDR_L];
 	uint8_t rqt_id[IP_ADDR_L];
+	uint8_t dns_id[IP_ADDR_L];
 } dhcp_opt;
 
 /// Some commom DHCP Opt Field Opcodes
@@ -83,6 +84,7 @@ typedef struct {
 #define DHCP_SRV_ID_OP 54
 #define DHCP_RTR_ID_OP 3
 #define DHCP_RQT_ID_OP 50
+#define DHCP_DNS_OP 6
 #define DHCP_END_OP 255
 
 /// This is a blocking calling, it will begin looking for dhcp packages in the network.
