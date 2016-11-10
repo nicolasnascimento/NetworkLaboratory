@@ -151,6 +151,7 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 	memset(opt->srv_id, 0, IP_ADDR_L);
 	memset(opt->rtr_id, 0, IP_ADDR_L);
 	memset(opt->rqt_id, 0, IP_ADDR_L);
+	memset(opt->dns_id, 0, IP_ADDR_L);
 
 	uint8_t* ptr = pkg->opt;
 	
@@ -230,6 +231,9 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 				memcpy(opt->rqt_id, ptr + 2, IP_ADDR_L);
 				dhcp_opt_len = 2 + IP_ADDR_L;
 				break;
+			case DHCP_DNS_OP:
+				memcpy(opt->dns_id, ptr + 2, IP_ADDR_L);
+				dhcp_opt_len = 2 + *(ptr + 1);
 			/*default:
 				//printf("Debug\n");*/
 		}
@@ -380,7 +384,21 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 		memcpy(ptr + 2, opt->rqt_id, IP_ADDR_L);
 		ptr += 2 + IP_ADDR_L;
 	}
-	
+	// DNS Server
+	int dns_id_v = 0;
+	for( int i = 0; i < IP_ADDR_L; i++ ) {
+		if( opt->dns_id[i] != 0 ) {
+			dns_id_v = 1;
+			break;	
+		}
+	}
+	if( dns_id_v != 0 ) {
+		ptr[0] = DHCP_DNS_OP;
+		ptr[1] = IP_ADDR_L;
+		memcpy(ptr + 2, opt->dns_id, IP_ADDR_L);
+		ptr += 2 + IP_ADDR_L;
+	}
+
 	// End of DHCP Options
 	ptr[0] = DHCP_END_OP;
 }

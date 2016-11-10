@@ -17,6 +17,7 @@
 #include <netinet/ip.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
+#include <resolv.h>
 
 #include "dhcp.h"
 
@@ -26,7 +27,10 @@ char ifa_name[IFNAMSIZ + 1];
 struct in_addr my_ip;
 struct in_addr brd_addr;
 struct in_addr sub_addr;
+struct in_addr dns_addr;
 uint8_t srv_hst_name[] = "NOT-A-ROUTER";
+uint8_t dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
+uint8_t cur_ip = 40;
 
 /// Always use this print, which is only enabled when verbose mode is enabled.
 void d_printf(char* format, ...) {
@@ -57,6 +61,11 @@ void get_initial_flags(int argc, char** argv) {
 	}
 }
 
+
+/// Returns the next ip for the network
+in_addr_t get_cur_ip() {
+	return ( my_ip.s_addr & sub_addr.s_addr ) + cur_ip;
+}
 
 /// Alloc & Initialze objects. 
 /// Perform Initial Setup of the program
@@ -94,8 +103,9 @@ void init(void) {
 	}
 	freeifaddrs(addrs);
 	
-	// Broadcast
-	
+	// Initialization to get DNS Server Ip
+	dns_addr.s_addr = inet_addr(dns_srv_addr);
+	d_printf("DNS Server Ip: %s\n", inet_ntoa(dns_addr));
 
 	d_printf("Done - Initialization\n");
 }
@@ -143,7 +153,7 @@ void init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;		
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = 0;		
-				o_hdr.own_ip = inet_addr("10.32.143.20"); // Static Value for Now
+				o_hdr.own_ip = inet_addr("10.32.143.40"); // Static Value for Now
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -156,6 +166,7 @@ void init_DHCP_server(void* arg) {
 				memcpy(o_opt.srv_id, &my_ip.s_addr, IP_ADDR_L);
 				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
 				memcpy(o_opt.sub_msk, &sub_addr.s_addr, IP_ADDR_L);
+				memcpy(o_opt.dns_id, &dns_addr.s_addr, IP_ADDR_L);
 				//o_opt.rnw_time = 10000;
 				//o_opt.rbn_time = 10000;
 
@@ -164,7 +175,8 @@ void init_DHCP_server(void* arg) {
 			
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
-	
+				
+				d_printf("Host Name: %s\n",i_opt.hst_name);
 				break;
 			case OFFER:
 				d_printf("Offer\n");
@@ -179,7 +191,7 @@ void init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = i_hdr.clt_ip;
-				o_hdr.own_ip = inet_addr("10.32.143.20");
+				o_hdr.own_ip = inet_addr("10.32.143.40");
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -192,6 +204,7 @@ void init_DHCP_server(void* arg) {
 				memcpy(o_opt.srv_id, &my_ip.s_addr, IP_ADDR_L);
 				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
 				memcpy(o_opt.sub_msk, &sub_addr.s_addr, IP_ADDR_L);
+				memcpy(o_opt.dns_id, &dns_addr.s_addr, IP_ADDR_L);
 				o_opt.rnw_time = 10000;
 				o_opt.rbn_time = 10000;
 
@@ -201,6 +214,7 @@ void init_DHCP_server(void* arg) {
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
 				
+				cur_ip++;
 				d_printf("Request\n");
 				break;
 			case DECLINE:
