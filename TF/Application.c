@@ -278,7 +278,21 @@ int i,j;
 }
 
 int handle_ok(char *buffer, char **ip, char **host) {
-	return 1;
+	unsigned char *get;
+	unsigned char *var;
+	if ((get = strstr(buffer, "HTTP/1.1 200 OK")) != NULL) {
+		char *token = NULL;
+
+		token = strtok(get, "\n");
+		int i;
+		for (i=0; i<20 && token; i++) {
+			if ((var = strstr(token, "text/html")) != NULL) {
+				return 1;
+			}
+			token = strtok(NULL, "\n");
+		}
+	}
+	return 0;
 }
 
 int handle_http(char *buffer, char **ip, char **host) {
@@ -297,13 +311,15 @@ int handle_http(char *buffer, char **ip, char **host) {
 			token = strtok(NULL, "\n");
 		}
 	}
+	return 0;
 }
 
 //Wait for incoming HTTP packets
-int wait_packet(int sock_raw, char **host, char **ip, int op) {
+int wait_packet(int sock_raw, char **host, char **ipx, int op) {
 	unsigned char *buffer = (unsigned char *)malloc(65536);
 	int data_size;
 	d_printf("wait_http_packet\n");
+	char *ip;
 	//struct sockaddr saddr;
 	//int saddr_size = sizeof(saddr);
 	
@@ -330,12 +346,16 @@ int wait_packet(int sock_raw, char **host, char **ip, int op) {
 		source.sin_addr.s_addr = iph->saddr;
 
 		if (iph->protocol == 6 && tcph->doff > 0) {
-			*ip = inet_ntoa(source.sin_addr);
 			buffer += sizeof(struct ethhdr)+sizeof(struct tcphdr)+sizeof(struct iphdr);
-			if (op==0)
+			ip = inet_ntoa(source.sin_addr);
+			if (op==0) {
+				*ipx = ip;
 				return handle_http(buffer, ip, host);
-			else if (op==1)
-				return handle_ok(buffer, ip, host);
+			} else if (op==1) {
+				if (strcmp(*ipx, ip) == 0)
+					return handle_ok(buffer, ip, host);
+				return 0;
+			}
 
 		}
 
@@ -374,9 +394,9 @@ void init_sniffer() {
 	char *ip = (char*)malloc(64), *host = (char*)malloc(64);
 	while (1) {
 		if (wait_packet(sock_raw, &host, &ip, 0)) {
-			//if (wait_http_ok_packet(sock_raw, ip))
-			//	printf("(%s) %s\n", ip, host);
 			printf("(%s) %s\n", ip, host);
+			//while (wait_packet(sock_raw, &host, &ip, 1) != 1);
+			//printf("OK\n");
 		}
 	}
 
