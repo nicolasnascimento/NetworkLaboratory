@@ -30,6 +30,7 @@ struct in_addr sub_addr;
 struct in_addr dns_addr;
 uint8_t srv_hst_name[] = "NOT-A-ROUTER";
 uint8_t dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
+uint8_t cur_ip = 40;
 
 /// Always use this print, which is only enabled when verbose mode is enabled.
 void d_printf(char* format, ...) {
@@ -60,6 +61,11 @@ void get_initial_flags(int argc, char** argv) {
 	}
 }
 
+
+/// Returns the next ip for the network
+in_addr_t get_cur_ip() {
+	return ( my_ip.s_addr & sub_addr.s_addr ) + cur_ip;
+}
 
 /// Alloc & Initialze objects. 
 /// Perform Initial Setup of the program
@@ -169,7 +175,8 @@ void init_DHCP_server(void* arg) {
 			
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
-	
+				
+				d_printf("Host Name: %s\n",i_opt.hst_name);
 				break;
 			case OFFER:
 				d_printf("Offer\n");
@@ -207,6 +214,7 @@ void init_DHCP_server(void* arg) {
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
 				
+				cur_ip++;
 				d_printf("Request\n");
 				break;
 			case DECLINE:
