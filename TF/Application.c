@@ -30,6 +30,7 @@ struct in_addr sub_addr;
 struct in_addr dns_addr;
 uint8_t srv_hst_name[] = "NOT-A-ROUTER";
 uint8_t dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
+uint8_t cur_ip = 40;
 
 /// Always use this print, which is only enabled when verbose mode is enabled.
 void d_printf(char* format, ...) {
@@ -60,6 +61,11 @@ void get_initial_flags(int argc, char** argv) {
 	}
 }
 
+
+/// Returns the next ip for the network
+in_addr_t get_cur_ip() {
+	return ( my_ip.s_addr & sub_addr.s_addr ) + cur_ip;
+}
 
 /// Alloc & Initialze objects. 
 /// Perform Initial Setup of the program
@@ -169,7 +175,8 @@ void init_DHCP_server(void* arg) {
 			
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
-	
+				
+				d_printf("Host Name: %s\n",i_opt.hst_name);
 				break;
 			case OFFER:
 				d_printf("Offer\n");
@@ -207,6 +214,7 @@ void init_DHCP_server(void* arg) {
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
 				
+				cur_ip++;
 				d_printf("Request\n");
 				break;
 			case DECLINE:
@@ -269,37 +277,49 @@ int i,j;
     }
 }
 
-//Verify if the http packet contains a valid history URL
-int is_a_valid_history(unsigned char *http, int data_size) {
-	d_printf("is_a_valid_history\n");
-	//print_payload(http, data_size);
-	//printf("%*s\n", data_size, http);
+int handle_ok(char *buffer, char **ip, char **host) {
 	unsigned char *get;
-	if ((get = strstr(http, "GET")) != NULL) {
-		//printf("GET\n");
+	unsigned char *var;
+	if ((get = strstr(buffer, "HTTP/1.1 200 OK")) != NULL) {
 		char *token = NULL;
+
 		token = strtok(get, "\n");
 		int i;
-		for (i=0; i<2; i++) {
-			printf("%s\n", token);
+		for (i=0; i<20 && token; i++) {
+			if ((var = strstr(token, "text/html")) != NULL) {
+				return 1;
+			}
 			token = strtok(NULL, "\n");
 		}
 	}
+	return 0;
+}
 
+int handle_http(char *buffer, char **ip, char **host) {
+	unsigned char *get;
+	unsigned char *var;
+	if ((get = strstr(buffer, "GET")) != NULL) {
+		char *token = NULL;
 
-
-	//check if the payload has the string "GET / HTTP1.1"
-		//if yes, check if the payload have a referrer
-			//if not, save the address
-			//if yes, check the content type into the response HTTP 200
-				//if it is text/html save the address
-	//print packet
+		token = strtok(get, "\n");
+		int i;
+		for (i=0; i<2 && token; i++) {
+			if ((var = strstr(token, "Host")) != NULL) {
+				*host = var+6;
+				return 1;
+			}
+			token = strtok(NULL, "\n");
+		}
+	}
 	return 0;
 }
 
 //Wait for incoming HTTP packets
-int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
+int wait_packet(int sock_raw, char **host, char **ipx, int op) {
+	unsigned char *buffer = (unsigned char *)malloc(65536);
+	int data_size;
 	d_printf("wait_http_packet\n");
+	char *ip;
 	//struct sockaddr saddr;
 	//int saddr_size = sizeof(saddr);
 	
@@ -311,10 +331,10 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 
 	do {
 		//Receive a packet
-		//d_printf("waiting a packet...\n");
-		*data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
-		//d_printf("received\n");
-		if (*data_size < 0) {
+		d_printf("waiting a packet...\n");
+		data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
+		d_printf("received\n");
+		if (data_size < 0) {
 			//Return in an error occur
 			perror("recvfrom");
 			return 0;
@@ -325,24 +345,27 @@ int wait_http_packet(int sock_raw, unsigned char *buffer, int *data_size) {
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
 
-	}
-	//Check if the packet has any HTTP info
-	while (!(iph->protocol == 6 && strcmp("10.32.143.40", inet_ntoa(source.sin_addr)) == 0 && tcph->doff > 0));
+		if (iph->protocol == 6 && tcph->doff > 0) {
+			buffer += sizeof(struct ethhdr)+sizeof(struct tcphdr)+sizeof(struct iphdr);
+			ip = inet_ntoa(source.sin_addr);
+			if (op==0) {
+				*ipx = ip;
+				return handle_http(buffer, ip, host);
+			} else if (op==1) {
+				if (strcmp(*ipx, ip) == 0)
+					return handle_ok(buffer, ip, host);
+				return 0;
+			}
 
-	d_printf("A TCP packet was found and it has some content\n");
-	d_printf("Source IP: %s\n", inet_ntoa(source.sin_addr));
-	d_printf("packet length: %d\n", *data_size);
-	//Return the data of HTTP packet by argument
-	*data_size = *data_size-(sizeof(struct ethhdr)+sizeof(struct tcphdr));
-	//print_payload(buffer, *data_size);
-	//return 1;
-	return buffer+sizeof(struct ethhdr)+sizeof(struct tcphdr)+sizeof(struct iphdr);
+		}
+
+
+	} while(1);
 }
 
 //Monitor the HTTP network traffic
 void init_sniffer() {
-	int sock_raw, data_size, http;
-	unsigned char *buffer = (unsigned char *)malloc(65536);
+	int sock_raw;
 	struct ifreq interfaceFlags;
 
 	//Create a raw socket that shall sniff
@@ -368,9 +391,14 @@ void init_sniffer() {
                 return;
         }
 
-	while((buffer = wait_http_packet(sock_raw, buffer, &data_size)))
-		if (is_a_valid_history(buffer, data_size))
-			printf("http\n");
+	char *ip = (char*)malloc(64), *host = (char*)malloc(64);
+	while (1) {
+		if (wait_packet(sock_raw, &host, &ip, 0)) {
+			printf("(%s) %s\n", ip, host);
+			//while (wait_packet(sock_raw, &host, &ip, 1) != 1);
+			//printf("OK\n");
+		}
+	}
 
 	close(sock_raw);
 }
@@ -387,11 +415,9 @@ int main(int argc, char** argv) {
 	
 	pthread_t thread;
 
-	if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
-	
-		d_printf("Deu Merda\n");
-	
-	}
+	//if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
+	//	d_printf("Deu Merda\n");
+	//}
 	
 	
 	init_sniffer();
