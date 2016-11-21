@@ -298,14 +298,21 @@ int handle_ok(char *buffer, char **ip, char **host) {
 int handle_http(char *buffer, char **ip, char **host) {
 	unsigned char *get;
 	unsigned char *var;
-	if ((get = strstr(buffer, "GET")) != NULL) {
-		char *token = NULL;
+	
 
+	if ((get = strstr(buffer, "GET /")) != NULL) {
+		char *token = NULL;
+		char sub_dom[strlen(token)];
+		memset(sub_dom, 0, strlen(token));
+		get += 4;
 		token = strtok(get, "\n");
+		memcpy(sub_dom, token, strlen(token) - 9);		
+		printf("end = %s\n\n\n\n", sub_dom);
 		int i;
 		for (i=0; i<2 && token; i++) {
 			if ((var = strstr(token, "Host")) != NULL) {
 				*host = var+6;
+				memcpy(*host + strlen(*host), sub_dom, strlen(sub_dom));
 				return 1;
 			}
 			token = strtok(NULL, "\n");
@@ -316,24 +323,24 @@ int handle_http(char *buffer, char **ip, char **host) {
 
 //Wait for incoming HTTP packets
 int wait_packet(int sock_raw, char **host, char **ipx, int op) {
-	unsigned char *buffer = (unsigned char *)malloc(65536);
-	int data_size;
-	d_printf("wait_http_packet\n");
+	size_t buf_len = 65536;
+	unsigned char *buffer = (unsigned char *)malloc(buf_len);
+	size_t data_size = 0;
+	//d_printf("wait_http_packet\n");
 	char *ip;
-	//struct sockaddr saddr;
-	//int saddr_size = sizeof(saddr);
 	
-	memset(buffer, 0, sizeof(*buffer));
+	memset(buffer, 0, buf_len);
 
     	struct iphdr *iph;
 	struct tcphdr *tcph;
 	struct sockaddr_in source;
-
+	struct sockaddr_in dest;
+	
 	do {
 		//Receive a packet
-		d_printf("waiting a packet...\n");
-		data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
-		d_printf("received\n");
+		//d_printf("waiting a packet...\n");
+		data_size = recv(sock_raw, buffer, buf_len, 0);//&saddr, &saddr_size);
+		//d_printf("received\n");
 		if (data_size < 0) {
 			//Return in an error occur
 			perror("recvfrom");
@@ -344,19 +351,24 @@ int wait_packet(int sock_raw, char **host, char **ipx, int op) {
 		tcph = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + sizeof(struct iphdr));
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
+		dest.sin_addr.s_addr = iph->daddr;
 
-		if (iph->protocol == 6 && tcph->doff > 0) {
+
+		if (iph->protocol == 6 && tcph->doff > 0 && strcmp("10.32.143.40", inet_ntoa(source.sin_addr)) == 0 ) {
 			buffer += sizeof(struct ethhdr)+sizeof(struct tcphdr)+sizeof(struct iphdr);
 			ip = inet_ntoa(source.sin_addr);
+			int ret_v = 0;
 			if (op==0) {
 				*ipx = ip;
-				return handle_http(buffer, ip, host);
+				ret_v = handle_http(buffer, ip, host);
 			} else if (op==1) {
-				if (strcmp(*ipx, ip) == 0)
-					return handle_ok(buffer, ip, host);
-				return 0;
+				if (strcmp(*ipx, ip) == 0){
+					ret_v = handle_ok(buffer, ip, host);
+				} else {
+					ret_v = 0;
+				}
 			}
-
+			return ret_v;
 		}
 
 
@@ -391,7 +403,8 @@ void init_sniffer() {
                 return;
         }
 
-	char *ip = (char*)malloc(64), *host = (char*)malloc(64);
+	char *ip = (char*)malloc(64), *host = (char*)calloc(1, 64);
+	
 	while (1) {
 		if (wait_packet(sock_raw, &host, &ip, 0)) {
 			printf("(%s) %s\n", ip, host);
@@ -415,9 +428,9 @@ int main(int argc, char** argv) {
 	
 	pthread_t thread;
 
-	//if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
-	//	d_printf("Deu Merda\n");
-	//}
+	if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
+		d_printf("Deu Merda\n");
+	}
 	
 	
 	init_sniffer();
