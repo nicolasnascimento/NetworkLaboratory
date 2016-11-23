@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/// The following header was based on the DHCP header file which can be found at: 
+/// The following header was based on the DHCP header file which can be found at:
 /// http://www.networksorcery.com/enp/protocol/dhcp.htm#Boot%20filename
 /// https://support.microsoft.com/en-us/kb/169289
 /// https://technet.microsoft.com/en-us/library/cc977584.aspx
@@ -27,7 +27,7 @@ typedef struct {
 	uint8_t opcode;				// 0x1 = REQUEST, 0x2 = REPLY
 	uint8_t hrd_t;				// 0x1 = Ethernet
 	uint8_t hrd_addr_l;
-	uint8_t hop_c;				
+	uint8_t hop_c;
 	uint32_t trs_id;
 	uint16_t num_s;
 	uint16_t flags;				// if MSB = 1, Broacast
@@ -35,10 +35,10 @@ typedef struct {
 	uint32_t own_ip;
 	uint32_t srv_ip;
 	uint32_t gtw_ip;
-	uint8_t clt_hrd_addr[CLT_HRD_ADDR_L];			
+	uint8_t clt_hrd_addr[CLT_HRD_ADDR_L];
 	uint8_t srv_hst[SRV_HST_L];
 	uint8_t boot_fln[BOOT_FLN_L];
-	
+
 	// Variable Length Field
 	uint8_t opt[OPT_MAX_L];
 } dhcp_hdr;
@@ -97,7 +97,7 @@ void send_dhcp_hdr(dhcp_hdr*, in_addr_t);
 /// This will get all data from the network and set the struct with the appropriate values
 void set_dhcp_hdr_from_bytes(dhcp_hdr*, uint8_t*, size_t);
 
-/// This will get all data form the struct and set the values pointed by the 
+/// This will get all data form the struct and set the values pointed by the
 void set_bytes_from_dhcp_hdr(dhcp_hdr*, uint8_t*, size_t);
 
 /// This will set the dhcp opt struct using the dhcp header struct provided
