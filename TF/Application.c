@@ -325,15 +325,12 @@ void init_sniffer() {
 	}
 }
 
-
 void* init_url_thread(void* arg) {
-
 	url_fp = fopen("urls.htm", "a");
 	if( !url_fp ) {
 		d_printf("Error while creating file for the urls\n");
 		return NULL;
 	}
-
 	while (1) {
 		printf("waiting urls\n");
 		pthread_mutex_lock(&url_file_mutex);
