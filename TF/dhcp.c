@@ -11,12 +11,12 @@
 const uint8_t MAGIC_COOKIE[4] = { 99, 130, 83, 99 };
 
 in_addr_t wait_dhcp_hdr(dhcp_hdr* pkg) {
-	
+
 	int sock;
 	struct sockaddr_in serv_addr;
 	struct sockaddr_in clnt_addr;
 	int recv_data_l;
-	unsigned sockaddr_l = sizeof(struct sockaddr_in);	
+	unsigned sockaddr_l = sizeof(struct sockaddr_in);
 	int dhcp_hdr_l = sizeof(dhcp_hdr);
 	uint8_t buffer[dhcp_hdr_l];
 	in_addr_t rtrn_v;
@@ -32,35 +32,35 @@ in_addr_t wait_dhcp_hdr(dhcp_hdr* pkg) {
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	serv_addr.sin_port = htons(DHCP_PRT_NUM_S);
-	
+
 	// Binds Local Addres
 	if(bind(sock, (struct sockaddr *) &serv_addr, sockaddr_l) < 0 ) {
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
-		
+
 	// Begin Receiving Packages
 	while(1) {
 		// Ensures The buffer is empty before doing any operation
-		memset(buffer, 0, dhcp_hdr_l);		
-		
+		memset(buffer, 0, dhcp_hdr_l);
+
 		// Safely receives data form the socket
 		if( (recv_data_l = recvfrom(sock, buffer, dhcp_hdr_l, 0, (struct sockaddr *) &clnt_addr, &sockaddr_l)) < 0) {
 			perror("recvfrom");
 			exit(EXIT_FAILURE);
 		}
-		
+
 		// Sets the header before bringing it back
 		set_dhcp_hdr_from_bytes(pkg, buffer, recv_data_l);
-		
+
 		/// Sets the returning value
 		rtrn_v = clnt_addr.sin_addr.s_addr;
-		
+
 		break;
 	}
 	// Closes the socket
 	close(sock);
-	
+
 	return rtrn_v;
 }
 
@@ -70,7 +70,7 @@ void send_dhcp_hdr(dhcp_hdr* pkg, in_addr_t addr) {
 	unsigned sockaddr_l = sizeof(struct sockaddr_in);
 	int dhcp_hdr_l = sizeof(dhcp_hdr);
 	uint8_t buffer[dhcp_hdr_l];
-	
+
 	if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
 		perror("socket");
 		exit(EXIT_FAILURE);
@@ -80,7 +80,7 @@ void send_dhcp_hdr(dhcp_hdr* pkg, in_addr_t addr) {
 	if(setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
 		perror("setsockopt");
 		exit(EXIT_FAILURE);
-	}	
+	}
 
 	memset(&serv_addr, 0, sockaddr_l);
 	serv_addr.sin_family = AF_INET;
@@ -95,16 +95,16 @@ void send_dhcp_hdr(dhcp_hdr* pkg, in_addr_t addr) {
 		perror("sendto");
 		exit(EXIT_FAILURE);
 	}
-	
+
 	// Closes the socket
 	close(sock);
 }
 
 void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
-	
+
 	// Copies data from the pointer
 	memcpy(pkg, ptr, ptr_l);
-	
+
 	// Apropriate Network-to-Host Conversions
 	pkg->trs_id = ntohl(pkg->trs_id);
 	pkg->num_s = ntohs(pkg->num_s);
@@ -118,7 +118,7 @@ void set_dhcp_hdr_from_bytes(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
 
 
 void set_bytes_from_dhcp_hdr(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
-	
+
 	/// Host to Network Conversions
 	pkg->trs_id = htonl(pkg->trs_id);
 	pkg->num_s = htons(pkg->num_s);
@@ -127,19 +127,18 @@ void set_bytes_from_dhcp_hdr(dhcp_hdr* pkg, uint8_t* ptr, size_t ptr_l) {
 	pkg->own_ip = htonl(pkg->own_ip);
 	pkg->srv_ip = htonl(pkg->srv_ip);
 	pkg->gtw_ip = htonl(pkg->gtw_ip);*/
-	
+
 	size_t dhcp_hdr_l = sizeof(dhcp_hdr);
 	if( ptr_l >= dhcp_hdr_l ) {
 		memcpy(ptr, pkg, sizeof(dhcp_hdr));
-	
+
 	}else{
 		printf("Couldn't copy dhcp_hdr to pointer, the pointer size is too small\n");
 	}
-	
 }
 
 void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
-	
+
 	/// Assures these values have a safe value before changing them
 	opt->cookie_status = OK;
 	opt->dhcp_msg = INVALID;
@@ -154,7 +153,7 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 	memset(opt->dns_id, 0, IP_ADDR_L);
 
 	uint8_t* ptr = pkg->opt;
-	
+
 	/// Magic Cookie
 	size_t magic_cookie_size = 4; // bytes
 	for( size_t i = 0; i < magic_cookie_size; i++) {
@@ -196,6 +195,7 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 				dhcp_opt_len = 3;
 				break;
 			case DHCP_HST_NAME_OP:
+				str_ll = *(ptr + 1);
 				memcpy(opt->hst_name, ptr + 2, str_ll);
 				opt->hst_name[str_ll] = '\0';
 				dhcp_opt_len = 2 + str_ll;
@@ -205,11 +205,11 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 				dhcp_opt_len = 2 + *(ptr + 1);
 				break;
 			case DHCP_SUB_MSK_OP:
-				memcpy(opt->sub_msk, ptr + 2, IP_ADDR_L); 
+				memcpy(opt->sub_msk, ptr + 2, IP_ADDR_L);
 				dhcp_opt_len = 6;
 				break;
 			case DHCP_RNW_TIME_OP:
-				memcpy(opt->rtr_id, ptr + 2, IP_ADDR_L);						
+				memcpy(opt->rtr_id, ptr + 2, IP_ADDR_L);
 				dhcp_opt_len = 2 + *(ptr + 1);
 				break;
 			case DHCP_RBN_TIME_OP:
@@ -243,18 +243,18 @@ void set_dhcp_opt_from_dhcp_hdr(dhcp_opt* opt, dhcp_hdr* pkg) {
 }
 
 void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
-	
+
 	// Begin pointing to the options field
 	uint8_t* ptr = pkg->opt;
-	
+
 	// Cookie
 	memcpy(ptr, MAGIC_COOKIE, 4);
 	ptr += 4;
-	
+
 	// First the type
 	uint8_t dhcp_msg_type = 0;
 	switch( opt->dhcp_msg ) {
-		case DISCOVER: dhcp_msg_type = 1;	
+		case DISCOVER: dhcp_msg_type = 1;
 			break;
 		case OFFER: dhcp_msg_type = 2;
 			break;
@@ -286,9 +286,9 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 		ptr[0] = DHCP_HST_NAME_OP;
 		ptr[1] = hst_name_l;
 		memcpy(ptr + 2, opt->hst_name, hst_name_l);
-		ptr += + 2 + hst_name_l;
+		ptr += 2 + hst_name_l;
 	}
-	
+
 	// Client Identifier
 	int clt_id_v = 0; // Flag to indicate if clt_id is valid
 	for( int i = 0; i < ETHER_ADDR_L; i++ ) {
@@ -304,7 +304,7 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 		memcpy(ptr + 3, opt->clt_id, ETHER_ADDR_L);
 		ptr += 3 + ETHER_ADDR_L;
 	}
-	
+
 	// Subnet Mask
 	int sub_msk_v = 0; // Flag to indicate if sub_msk is valid
 	for( int i = 0; i < IP_ADDR_L; i++ ) {
@@ -354,7 +354,7 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 		memcpy(ptr + 2, opt->srv_id, IP_ADDR_L);
 		ptr += 2 + IP_ADDR_L;
 	}
-	
+
 	// Router Identifier
 	int rtr_id_v = 0;
 	for( int i = 0; i < IP_ADDR_L; i++ ) {
@@ -389,7 +389,7 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 	for( int i = 0; i < IP_ADDR_L; i++ ) {
 		if( opt->dns_id[i] != 0 ) {
 			dns_id_v = 1;
-			break;	
+			break;
 		}
 	}
 	if( dns_id_v != 0 ) {

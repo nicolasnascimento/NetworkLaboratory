@@ -5,7 +5,7 @@
 #include "ippool.h"
 
 
-#define MAX_IP 255
+#define MAX_IP 1024
 
 in_addr_t ippool[MAX_IP];
 int is_valid = 0;
@@ -23,7 +23,7 @@ void lazy_init(void)  {
 uint8_t get_key_for_trs_id(uint32_t trs_id) {
   union ip_key key;
   key.trs_id = trs_id;
-  return (key.trs_id_b[0]/4) + (key.trs_id_b[1]/4) + (key.trs_id_b[2]/4) + (key.trs_id_b[3]/4);
+  return (key.trs_id_b[0]) + (key.trs_id_b[1]) + (key.trs_id_b[2]) + (key.trs_id_b[3]);
 }
 
 void set_ip_for_trs_id(in_addr_t ip, uint32_t trs_id) {

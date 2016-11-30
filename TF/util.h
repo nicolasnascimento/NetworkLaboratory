@@ -8,5 +8,4 @@ void get_initial_flags(int argc, char** argv);
 /// Always use this print, which is only enabled when verbose mode is enabled.
 void d_printf(char* format, ...);
 
-
 #endif // UTIL_H

