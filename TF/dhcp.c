@@ -319,6 +319,21 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 		memcpy(ptr + 2, opt->sub_msk, IP_ADDR_L);
 		ptr += 2 + IP_ADDR_L;
 	}
+	// Router Identifier
+	int rtr_id_v = 0;
+	for( int i = 0; i < IP_ADDR_L; i++ ) {
+		if( opt->rtr_id[i] != 0 ) {
+			rtr_id_v = 1;
+			break;
+		}
+	}
+	if( rtr_id_v != 0 ) {
+		ptr[0] = DHCP_RTR_ID_OP;
+		ptr[1] = IP_ADDR_L;
+		memcpy(ptr + 2, opt->rtr_id, IP_ADDR_L);
+		ptr += 2 + IP_ADDR_L;
+	}
+	
 	// Renew Time
 	if( opt->rnw_time != 0 ) {
 		ptr[0] = DHCP_RNW_TIME_OP;
@@ -352,21 +367,6 @@ void set_dhcp_hdr_from_dhcp_opt(dhcp_opt* opt, dhcp_hdr* pkg) {
 		ptr[0] = DHCP_SRV_ID_OP;
 		ptr[1] = IP_ADDR_L;
 		memcpy(ptr + 2, opt->srv_id, IP_ADDR_L);
-		ptr += 2 + IP_ADDR_L;
-	}
-
-	// Router Identifier
-	int rtr_id_v = 0;
-	for( int i = 0; i < IP_ADDR_L; i++ ) {
-		if( opt->rtr_id[i] != 0 ) {
-			rtr_id_v = 1;
-			break;
-		}
-	}
-	if( rtr_id_v != 0 ) {
-		ptr[0] = DHCP_RTR_ID_OP;
-		ptr[1] = IP_ADDR_L;
-		memcpy(ptr + 2, opt->rtr_id, IP_ADDR_L);
 		ptr += 2 + IP_ADDR_L;
 	}
 

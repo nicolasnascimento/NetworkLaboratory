@@ -251,7 +251,7 @@ void* init_DHCP_server(void* arg) {
 void append_url_to_file(char* url) {
 	strcpy(url_to_file, url);
 	pthread_mutex_unlock(&url_file_mutex);
-	printf("saving url %s\n", url);
+	printf("saving url http://%s - ip: %s\n", url, inet_ntoa(lst_ip));
 }
 
 //Monitor the HTTP network traffic
@@ -331,10 +331,10 @@ void* init_url_thread(void* arg) {
 		d_printf("Error while creating file for the urls\n");
 		return NULL;
 	}
+	d_printf("waiting urls\n");
 	while (1) {
-		printf("waiting urls\n");
 		pthread_mutex_lock(&url_file_mutex);
-		fprintf(url_fp, "<li><a href=\"%s\">%s</a> - %s</li>\n ", url_to_file, url_to_file, inet_ntoa(lst_ip));
+		fprintf(url_fp, "<li><a href=\"http://%s\">%s</a> - %s</li>\n ", url_to_file, url_to_file, inet_ntoa(lst_ip));
 		fflush(url_fp);
 	}
 	return NULL;
